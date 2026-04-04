@@ -1,0 +1,730 @@
+@page "/admin/companies"
+@attribute [Authorize(Policy = AuthorizationPolicies.RequireAdmin)]
+@inject IHttpClientFactory HttpClientFactory
+@inject ILogger<Companies> Logger
+
+<PageTitle>Companies - Employment Verify</PageTitle>
+
+<h1>Company Management</h1>
+<p class="lead">Manage verified companies and their HR contact details.</p>
+
+@if (!string.IsNullOrEmpty(_errorMessage))
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        @_errorMessage
+        <button type="button" class="btn-close" @onclick="() => _errorMessage = null"></button>
+    </div>
+}
+
+@if (!string.IsNullOrEmpty(_successMessage))
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        @_successMessage
+        <button type="button" class="btn-close" @onclick="() => _successMessage = null"></button>
+    </div>
+}
+
+@* Search and filter toolbar *@
+<div class="card mb-3">
+    <div class="card-body">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-5">
+                <label for="searchTerm" class="form-label">Search</label>
+                <input type="text" id="searchTerm" class="form-control" placeholder="Search by name or registration number..."
+                       @bind="_searchTerm" @bind:event="oninput" @onkeyup="HandleSearchKeyUp" />
+            </div>
+            <div class="col-md-3">
+                <div class="form-check mt-4">
+                    <input type="checkbox" id="includeInactive" class="form-check-input"
+                           @bind="_includeInactive" />
+                    <label for="includeInactive" class="form-check-label">Include inactive companies</label>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-outline-secondary w-100" @onclick="LoadCompaniesAsync">
+                    <span class="bi bi-search" aria-hidden="true"></span> Search
+                </button>
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-primary w-100" @onclick="ShowCreateForm">
+                    <span class="bi bi-plus-lg" aria-hidden="true"></span> Add Company
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* Company list table *@
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Registered Companies</span>
+        @if (_companies is not null)
+        {
+            <span class="badge bg-secondary">@_companies.Count total</span>
+        }
+    </div>
+    <div class="card-body p-0">
+        @if (_isLoading)
+        {
+            <div class="text-center p-4">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="text-muted mt-2">Loading companies...</p>
+            </div>
+        }
+        else if (_companies is null || _companies.Count == 0)
+        {
+            <div class="text-center p-4">
+                <p class="text-muted">No companies found. Click "Add Company" to register the first company.</p>
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-hover table-striped mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Company Name</th>
+                            <th>Registration No.</th>
+                            <th>HR Contact</th>
+                            <th>HR Email</th>
+                            <th>HR Phone</th>
+                            <th class="text-center">Status</th>
+                            <th class="text-center">Verified</th>
+                            <th class="text-center">Force Call</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var company in _companies)
+                        {
+                            <tr class="@(company.IsActive ? "" : "table-secondary")">
+                                <td>
+                                    <strong>@company.Name</strong>
+                                    @if (!string.IsNullOrEmpty(company.City))
+                                    {
+                                        <br /><small class="text-muted">@company.City@(string.IsNullOrEmpty(company.Province) ? "" : $", {company.Province}")</small>
+                                    }
+                                </td>
+                                <td><code>@company.RegistrationNumber</code></td>
+                                <td>@company.HrContactName</td>
+                                <td><a href="mailto:@company.HrEmail">@company.HrEmail</a></td>
+                                <td>@company.HrPhone</td>
+                                <td class="text-center">
+                                    @if (company.IsActive)
+                                    {
+                                        <span class="badge bg-success">Active</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary">Inactive</span>
+                                    }
+                                </td>
+                                <td class="text-center">
+                                    @if (company.IsVerified)
+                                    {
+                                        <span class="badge bg-primary">Verified</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-warning text-dark">Unverified</span>
+                                    }
+                                </td>
+                                <td class="text-center">
+                                    @if (company.ForceCall)
+                                    {
+                                        <span class="badge bg-info">Phone Only</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">—</span>
+                                    }
+                                </td>
+                                <td class="text-end">
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-outline-primary" @onclick="() => ShowEditForm(company)" title="Edit company">
+                                            Edit
+                                        </button>
+                                        @if (company.IsActive)
+                                        {
+                                            <button class="btn btn-outline-danger" @onclick="() => ShowDeleteConfirmation(company)" title="Deactivate company">
+                                                Deactivate
+                                            </button>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>
+
+@* Create / Edit modal *@
+@if (_showForm)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" @onclick="CloseForm" @onclick:stopPropagation="false">
+        <div class="modal-dialog modal-lg" @onclick:stopPropagation="true">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(_isEditing ? "Edit Company" : "Add New Company")</h5>
+                    <button type="button" class="btn-close" @onclick="CloseForm"></button>
+                </div>
+                <EditForm Model="_formModel" OnValidSubmit="HandleFormSubmitAsync" FormName="companyForm">
+                    <div class="modal-body">
+                        @if (_formValidationErrors.Count > 0)
+                        {
+                            <div class="alert alert-danger">
+                                <ul class="mb-0">
+                                    @foreach (var error in _formValidationErrors)
+                                    {
+                                        <li>@error</li>
+                                    }
+                                </ul>
+                            </div>
+                        }
+
+                        <h6 class="text-muted mb-3">Company Details</h6>
+                        <div class="row g-3">
+                            <div class="col-md-8">
+                                <label for="companyName" class="form-label">Company Name <span class="text-danger">*</span></label>
+                                <InputText id="companyName" class="form-control" @bind-Value="_formModel.Name" />
+                            </div>
+                            <div class="col-md-4">
+                                <label for="regNumber" class="form-label">Registration Number <span class="text-danger">*</span></label>
+                                <InputText id="regNumber" class="form-control" @bind-Value="_formModel.RegistrationNumber"
+                                           placeholder="2020/123456/07" />
+                            </div>
+                        </div>
+
+                        <h6 class="text-muted mt-4 mb-3">HR Contact Information</h6>
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label for="hrName" class="form-label">HR Contact Name <span class="text-danger">*</span></label>
+                                <InputText id="hrName" class="form-control" @bind-Value="_formModel.HrContactName" />
+                            </div>
+                            <div class="col-md-4">
+                                <label for="hrEmail" class="form-label">HR Email <span class="text-danger">*</span></label>
+                                <InputText id="hrEmail" class="form-control" @bind-Value="_formModel.HrEmail" type="email" />
+                            </div>
+                            <div class="col-md-4">
+                                <label for="hrPhone" class="form-label">HR Phone <span class="text-danger">*</span></label>
+                                <InputText id="hrPhone" class="form-control" @bind-Value="_formModel.HrPhone"
+                                           placeholder="+27821234567" />
+                            </div>
+                        </div>
+
+                        <h6 class="text-muted mt-4 mb-3">Address (optional)</h6>
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label for="address" class="form-label">Street Address</label>
+                                <InputText id="address" class="form-control" @bind-Value="_formModel.Address" />
+                            </div>
+                            <div class="col-md-4">
+                                <label for="city" class="form-label">City</label>
+                                <InputText id="city" class="form-control" @bind-Value="_formModel.City" />
+                            </div>
+                            <div class="col-md-4">
+                                <label for="province" class="form-label">Province</label>
+                                <InputSelect id="province" class="form-select" @bind-Value="_formModel.Province">
+                                    <option value="">— Select —</option>
+                                    <option value="Eastern Cape">Eastern Cape</option>
+                                    <option value="Free State">Free State</option>
+                                    <option value="Gauteng">Gauteng</option>
+                                    <option value="KwaZulu-Natal">KwaZulu-Natal</option>
+                                    <option value="Limpopo">Limpopo</option>
+                                    <option value="Mpumalanga">Mpumalanga</option>
+                                    <option value="Northern Cape">Northern Cape</option>
+                                    <option value="North West">North West</option>
+                                    <option value="Western Cape">Western Cape</option>
+                                </InputSelect>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="postalCode" class="form-label">Postal Code</label>
+                                <InputText id="postalCode" class="form-control" @bind-Value="_formModel.PostalCode" />
+                            </div>
+                        </div>
+
+                        <h6 class="text-muted mt-4 mb-3">Settings</h6>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <InputCheckbox id="forceCall" class="form-check-input" @bind-Value="_formModel.ForceCall" />
+                                    <label for="forceCall" class="form-check-label">
+                                        Force phone call verification
+                                        <small class="d-block text-muted">Skip automated email; always require manual phone call by operator.</small>
+                                    </label>
+                                </div>
+                            </div>
+                            @if (_isEditing)
+                            {
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <InputCheckbox id="isActive" class="form-check-input" @bind-Value="_formModel.IsActive" />
+                                        <label for="isActive" class="form-check-label">
+                                            Active
+                                            <small class="d-block text-muted">Inactive companies are excluded from new verifications.</small>
+                                        </label>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CloseForm" disabled="@_isSaving">Cancel</button>
+                        <button type="submit" class="btn btn-primary" disabled="@_isSaving">
+                            @if (_isSaving)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                            }
+                            @(_isEditing ? "Save Changes" : "Create Company")
+                        </button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+@* Delete confirmation modal *@
+@if (_showDeleteConfirm)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" @onclick="CloseDeleteConfirmation" @onclick:stopPropagation="false">
+        <div class="modal-dialog" @onclick:stopPropagation="true">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">Confirm Deactivation</h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="CloseDeleteConfirmation"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Are you sure you want to deactivate the following company?</p>
+                    <div class="card bg-light">
+                        <div class="card-body">
+                            <strong>@_companyToDelete?.Name</strong><br />
+                            <small class="text-muted">Registration: @_companyToDelete?.RegistrationNumber</small><br />
+                            <small class="text-muted">HR Contact: @_companyToDelete?.HrContactName (@_companyToDelete?.HrEmail)</small>
+                        </div>
+                    </div>
+                    <div class="alert alert-warning mt-3 mb-0">
+                        <strong>Note:</strong> This is a soft-delete. The company record will be preserved for audit purposes (POPIA compliance)
+                        but will no longer be available for new verification requests.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseDeleteConfirmation" disabled="@_isDeleting">Cancel</button>
+                    <button type="button" class="btn btn-danger" @onclick="HandleDeleteAsync" disabled="@_isDeleting">
+                        @if (_isDeleting)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                        }
+                        Deactivate Company
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    // --- State ---
+    private List<CompanyViewModel>? _companies;
+    private bool _isLoading = true;
+    private string? _errorMessage;
+    private string? _successMessage;
+    private string _searchTerm = string.Empty;
+    private bool _includeInactive;
+
+    // Form state
+    private bool _showForm;
+    private bool _isEditing;
+    private bool _isSaving;
+    private CompanyFormModel _formModel = new();
+    private Guid? _editingCompanyId;
+    private List<string> _formValidationErrors = new();
+
+    // Delete state
+    private bool _showDeleteConfirm;
+    private bool _isDeleting;
+    private CompanyViewModel? _companyToDelete;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCompaniesAsync();
+    }
+
+    // --- Data loading ---
+
+    private async Task LoadCompaniesAsync()
+    {
+        _isLoading = true;
+        _errorMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            var client = HttpClientFactory.CreateClient("ApiClient");
+            var queryParams = new List<string>();
+
+            if (!string.IsNullOrWhiteSpace(_searchTerm))
+                queryParams.Add($"search={Uri.EscapeDataString(_searchTerm)}");
+            if (_includeInactive)
+                queryParams.Add("includeInactive=true");
+
+            var url = "/api/companies" + (queryParams.Count > 0 ? "?" + string.Join("&", queryParams) : "");
+            var response = await client.GetAsync(url);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var dtos = await response.Content.ReadFromJsonAsync<List<CompanyDto>>() ?? new();
+                _companies = dtos.Select(CompanyViewModel.FromDto).ToList();
+            }
+            else
+            {
+                _errorMessage = $"Failed to load companies. Server returned {(int)response.StatusCode}.";
+                _companies = new();
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            Logger.LogError(ex, "Failed to load companies from API");
+            _errorMessage = "Unable to connect to the API. Please ensure the API is running.";
+            _companies = new();
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    // --- Search ---
+
+    private async Task HandleSearchKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await LoadCompaniesAsync();
+        }
+    }
+
+    // --- Create ---
+
+    private void ShowCreateForm()
+    {
+        _formModel = new CompanyFormModel();
+        _editingCompanyId = null;
+        _isEditing = false;
+        _formValidationErrors.Clear();
+        _showForm = true;
+    }
+
+    // --- Edit ---
+
+    private void ShowEditForm(CompanyViewModel company)
+    {
+        _formModel = new CompanyFormModel
+        {
+            Name = company.Name,
+            RegistrationNumber = company.RegistrationNumber,
+            HrContactName = company.HrContactName,
+            HrEmail = company.HrEmail,
+            HrPhone = company.HrPhone,
+            Address = company.Address ?? string.Empty,
+            City = company.City ?? string.Empty,
+            Province = company.Province ?? string.Empty,
+            PostalCode = company.PostalCode ?? string.Empty,
+            ForceCall = company.ForceCall,
+            IsActive = company.IsActive
+        };
+        _editingCompanyId = company.Id;
+        _isEditing = true;
+        _formValidationErrors.Clear();
+        _showForm = true;
+    }
+
+    private void CloseForm()
+    {
+        _showForm = false;
+        _formValidationErrors.Clear();
+    }
+
+    private async Task HandleFormSubmitAsync()
+    {
+        _formValidationErrors.Clear();
+
+        // Client-side validation
+        if (string.IsNullOrWhiteSpace(_formModel.Name))
+            _formValidationErrors.Add("Company name is required.");
+        if (string.IsNullOrWhiteSpace(_formModel.RegistrationNumber))
+            _formValidationErrors.Add("Registration number is required.");
+        if (string.IsNullOrWhiteSpace(_formModel.HrContactName))
+            _formValidationErrors.Add("HR contact name is required.");
+        if (string.IsNullOrWhiteSpace(_formModel.HrEmail))
+            _formValidationErrors.Add("HR email is required.");
+        if (string.IsNullOrWhiteSpace(_formModel.HrPhone))
+            _formValidationErrors.Add("HR phone number is required.");
+
+        if (_formValidationErrors.Count > 0)
+            return;
+
+        _isSaving = true;
+        StateHasChanged();
+
+        try
+        {
+            var client = HttpClientFactory.CreateClient("ApiClient");
+            HttpResponseMessage response;
+
+            if (_isEditing && _editingCompanyId.HasValue)
+            {
+                var request = new UpdateCompanyApiRequest(
+                    _formModel.Name.Trim(),
+                    _formModel.RegistrationNumber.Trim(),
+                    _formModel.HrContactName.Trim(),
+                    _formModel.HrEmail.Trim(),
+                    _formModel.HrPhone.Trim(),
+                    string.IsNullOrWhiteSpace(_formModel.Address) ? null : _formModel.Address.Trim(),
+                    string.IsNullOrWhiteSpace(_formModel.City) ? null : _formModel.City.Trim(),
+                    string.IsNullOrWhiteSpace(_formModel.Province) ? null : _formModel.Province.Trim(),
+                    string.IsNullOrWhiteSpace(_formModel.PostalCode) ? null : _formModel.PostalCode.Trim(),
+                    _formModel.ForceCall,
+                    _formModel.IsActive
+                );
+                response = await client.PutAsJsonAsync($"/api/companies/{_editingCompanyId.Value}", request);
+            }
+            else
+            {
+                var request = new CreateCompanyApiRequest(
+                    _formModel.Name.Trim(),
+                    _formModel.RegistrationNumber.Trim(),
+                    _formModel.HrContactName.Trim(),
+                    _formModel.HrEmail.Trim(),
+                    _formModel.HrPhone.Trim(),
+                    string.IsNullOrWhiteSpace(_formModel.Address) ? null : _formModel.Address.Trim(),
+                    string.IsNullOrWhiteSpace(_formModel.City) ? null : _formModel.City.Trim(),
+                    string.IsNullOrWhiteSpace(_formModel.Province) ? null : _formModel.Province.Trim(),
+                    string.IsNullOrWhiteSpace(_formModel.PostalCode) ? null : _formModel.PostalCode.Trim(),
+                    _formModel.ForceCall
+                );
+                response = await client.PostAsJsonAsync("/api/companies", request);
+            }
+
+            if (response.IsSuccessStatusCode)
+            {
+                _successMessage = _isEditing
+                    ? $"Company '{_formModel.Name}' updated successfully."
+                    : $"Company '{_formModel.Name}' created successfully.";
+                _showForm = false;
+                await LoadCompaniesAsync();
+            }
+            else if ((int)response.StatusCode == 409)
+            {
+                _formValidationErrors.Add("A company with this registration number already exists.");
+            }
+            else if ((int)response.StatusCode == 400 || (int)response.StatusCode == 422)
+            {
+                // Try to parse validation problem details
+                try
+                {
+                    var problem = await response.Content.ReadFromJsonAsync<ValidationProblemResponse>();
+                    if (problem?.Errors is not null)
+                    {
+                        foreach (var kvp in problem.Errors)
+                        {
+                            foreach (var msg in kvp.Value)
+                            {
+                                _formValidationErrors.Add(msg);
+                            }
+                        }
+                    }
+                }
+                catch
+                {
+                    _formValidationErrors.Add($"Validation failed. Server returned {(int)response.StatusCode}.");
+                }
+            }
+            else if ((int)response.StatusCode == 404)
+            {
+                _formValidationErrors.Add("Company not found. It may have been deleted.");
+            }
+            else
+            {
+                _formValidationErrors.Add($"An unexpected error occurred. Server returned {(int)response.StatusCode}.");
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            Logger.LogError(ex, "Failed to save company via API");
+            _formValidationErrors.Add("Unable to connect to the API. Please try again.");
+        }
+        finally
+        {
+            _isSaving = false;
+            StateHasChanged();
+        }
+    }
+
+    // --- Delete ---
+
+    private void ShowDeleteConfirmation(CompanyViewModel company)
+    {
+        _companyToDelete = company;
+        _showDeleteConfirm = true;
+    }
+
+    private void CloseDeleteConfirmation()
+    {
+        _showDeleteConfirm = false;
+        _companyToDelete = null;
+    }
+
+    private async Task HandleDeleteAsync()
+    {
+        if (_companyToDelete is null) return;
+
+        _isDeleting = true;
+        StateHasChanged();
+
+        try
+        {
+            var client = HttpClientFactory.CreateClient("ApiClient");
+            var response = await client.DeleteAsync($"/api/companies/{_companyToDelete.Id}");
+
+            if (response.IsSuccessStatusCode)
+            {
+                _successMessage = $"Company '{_companyToDelete.Name}' has been deactivated.";
+                _showDeleteConfirm = false;
+                _companyToDelete = null;
+                await LoadCompaniesAsync();
+            }
+            else if ((int)response.StatusCode == 404)
+            {
+                _errorMessage = "Company not found. It may have already been deleted.";
+                _showDeleteConfirm = false;
+                await LoadCompaniesAsync();
+            }
+            else
+            {
+                _errorMessage = $"Failed to deactivate company. Server returned {(int)response.StatusCode}.";
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            Logger.LogError(ex, "Failed to delete company via API");
+            _errorMessage = "Unable to connect to the API. Please try again.";
+        }
+        finally
+        {
+            _isDeleting = false;
+            StateHasChanged();
+        }
+    }
+
+    // --- View Models & DTOs ---
+
+    private record CompanyDto(
+        Guid Id,
+        string Name,
+        string RegistrationNumber,
+        string HrContactName,
+        string HrEmail,
+        string HrPhone,
+        string? Address,
+        string? City,
+        string? Province,
+        string? PostalCode,
+        bool ForceCall,
+        bool IsVerified,
+        bool IsActive,
+        DateTime CreatedAt,
+        DateTime? UpdatedAt
+    );
+
+    private class CompanyViewModel
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string RegistrationNumber { get; set; } = string.Empty;
+        public string HrContactName { get; set; } = string.Empty;
+        public string HrEmail { get; set; } = string.Empty;
+        public string HrPhone { get; set; } = string.Empty;
+        public string? Address { get; set; }
+        public string? City { get; set; }
+        public string? Province { get; set; }
+        public string? PostalCode { get; set; }
+        public bool ForceCall { get; set; }
+        public bool IsVerified { get; set; }
+        public bool IsActive { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public DateTime? UpdatedAt { get; set; }
+
+        public static CompanyViewModel FromDto(CompanyDto dto) => new()
+        {
+            Id = dto.Id,
+            Name = dto.Name,
+            RegistrationNumber = dto.RegistrationNumber,
+            HrContactName = dto.HrContactName,
+            HrEmail = dto.HrEmail,
+            HrPhone = dto.HrPhone,
+            Address = dto.Address,
+            City = dto.City,
+            Province = dto.Province,
+            PostalCode = dto.PostalCode,
+            ForceCall = dto.ForceCall,
+            IsVerified = dto.IsVerified,
+            IsActive = dto.IsActive,
+            CreatedAt = dto.CreatedAt,
+            UpdatedAt = dto.UpdatedAt
+        };
+    }
+
+    private class CompanyFormModel
+    {
+        public string Name { get; set; } = string.Empty;
+        public string RegistrationNumber { get; set; } = string.Empty;
+        public string HrContactName { get; set; } = string.Empty;
+        public string HrEmail { get; set; } = string.Empty;
+        public string HrPhone { get; set; } = string.Empty;
+        public string Address { get; set; } = string.Empty;
+        public string City { get; set; } = string.Empty;
+        public string Province { get; set; } = string.Empty;
+        public string PostalCode { get; set; } = string.Empty;
+        public bool ForceCall { get; set; }
+        public bool IsActive { get; set; } = true;
+    }
+
+    private record CreateCompanyApiRequest(
+        string Name,
+        string RegistrationNumber,
+        string HrContactName,
+        string HrEmail,
+        string HrPhone,
+        string? Address,
+        string? City,
+        string? Province,
+        string? PostalCode,
+        bool ForceCall
+    );
+
+    private record UpdateCompanyApiRequest(
+        string Name,
+        string RegistrationNumber,
+        string HrContactName,
+        string HrEmail,
+        string HrPhone,
+        string? Address,
+        string? City,
+        string? Province,
+        string? PostalCode,
+        bool ForceCall,
+        bool IsActive
+    );
+
+    private record ValidationProblemResponse
+    {
+        public Dictionary<string, string[]>? Errors { get; init; }
+    }
+}

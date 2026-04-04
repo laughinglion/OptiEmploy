@@ -1,0 +1,44 @@
+@using System.Security.Claims
+@using EmploymentVerify.Domain.Constants
+@inject NavigationManager Navigation
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthState { get; set; }
+
+    /// <summary>
+    /// Optional return URL. If set, redirect there instead of the role-based default.
+    /// </summary>
+    [Parameter]
+    public string? ReturnUrl { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthState is null)
+            return;
+
+        var state = await AuthState;
+        if (state.User.Identity is not { IsAuthenticated: true })
+            return;
+
+        // If a return URL was supplied (e.g., from login redirect), use it
+        if (!string.IsNullOrWhiteSpace(ReturnUrl) && ReturnUrl != "/")
+        {
+            Navigation.NavigateTo(ReturnUrl);
+            return;
+        }
+
+        // Redirect based on the user's primary role
+        var role = state.User.FindFirst(ClaimTypes.Role)?.Value;
+
+        var target = role switch
+        {
+            AppRoles.Admin => "/",
+            AppRoles.Requestor => "/verifications/submit",
+            AppRoles.Operator => "/operations/queue",
+            _ => "/"
+        };
+
+        Navigation.NavigateTo(target);
+    }
+}

@@ -1,0 +1,259 @@
+@page "/account/register"
+@attribute [AllowAnonymous]
+@using System.ComponentModel.DataAnnotations
+@using System.Text.Json
+@using System.Text.RegularExpressions
+@rendermode InteractiveServer
+@inject NavigationManager Navigation
+@inject IConfiguration Configuration
+@inject IHttpClientFactory HttpClientFactory
+@layout EmploymentVerify.Web.Components.Layout.MainLayout
+
+<PageTitle>Register - Employment Verify</PageTitle>
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow">
+                <div class="card-body p-4">
+                    <h3 class="card-title text-center mb-1">Create Account</h3>
+                    <p class="text-center text-muted mb-4">Get started with Employment Verify</p>
+
+                    @if (!string.IsNullOrEmpty(_successMessage))
+                    {
+                        <div class="alert alert-success" role="alert">
+                            @_successMessage
+                            <div class="mt-2">
+                                <a href="/account/login" class="btn btn-sm btn-primary">Sign In</a>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        @* Show SSO options first for faster registration *@
+                        <EmploymentVerify.Web.Components.Shared.SocialLoginButtons
+                            ReturnUrl="/"
+                            ActionVerb="Sign up"
+                            DividerText="Or register with email" />
+
+                        @if (!string.IsNullOrEmpty(_errorMessage))
+                        {
+                            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                                <small>@_errorMessage</small>
+                                <button type="button" class="btn-close btn-close-sm" @onclick="() => _errorMessage = null" aria-label="Close"></button>
+                            </div>
+                        }
+
+                        @if (_serverErrors.Count > 0)
+                        {
+                            <div class="alert alert-danger" role="alert">
+                                <ul class="mb-0">
+                                    @foreach (var error in _serverErrors)
+                                    {
+                                        <li>@error</li>
+                                    }
+                                </ul>
+                            </div>
+                        }
+
+                        <EditForm Model="_model" OnValidSubmit="HandleRegistration" FormName="register" novalidate>
+                            <DataAnnotationsValidator />
+
+                            <div class="mb-3">
+                                <label for="fullName" class="form-label">Full Name <span class="text-danger">*</span></label>
+                                <InputText id="fullName" class="form-control" @bind-Value="_model.FullName"
+                                           placeholder="Enter your full name" aria-required="true" />
+                                <ValidationMessage For="@(() => _model.FullName)" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="email" class="form-label">Email Address <span class="text-danger">*</span></label>
+                                <InputText id="email" class="form-control" @bind-Value="_model.Email"
+                                           placeholder="you@example.com" aria-required="true" />
+                                <ValidationMessage For="@(() => _model.Email)" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="password" class="form-label">Password <span class="text-danger">*</span></label>
+                                <InputText id="password" type="password" class="form-control" @bind-Value="_model.Password"
+                                           placeholder="Minimum 8 characters" aria-required="true" />
+                                <ValidationMessage For="@(() => _model.Password)" />
+                                <small class="form-text text-muted">
+                                    Must contain uppercase, lowercase, digit, and special character.
+                                </small>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="confirmPassword" class="form-label">Confirm Password <span class="text-danger">*</span></label>
+                                <InputText id="confirmPassword" type="password" class="form-control" @bind-Value="_model.ConfirmPassword"
+                                           placeholder="Re-enter your password" aria-required="true" />
+                                <ValidationMessage For="@(() => _model.ConfirmPassword)" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="companyName" class="form-label">Company Name</label>
+                                <InputText id="companyName" class="form-control" @bind-Value="_model.CompanyName"
+                                           placeholder="Optional" />
+                                <ValidationMessage For="@(() => _model.CompanyName)" />
+                            </div>
+
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <InputCheckbox id="consentPopia" class="form-check-input" @bind-Value="_model.ConsentToPopia" />
+                                    <label for="consentPopia" class="form-check-label">
+                                        I consent to the processing of my personal information in accordance with the
+                                        <a href="/privacy-policy" target="_blank">Protection of Personal Information Act (POPIA)</a>.
+                                        <span class="text-danger">*</span>
+                                    </label>
+                                    <ValidationMessage For="@(() => _model.ConsentToPopia)" />
+                                </div>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary w-100" disabled="@_isSubmitting">
+                                @if (_isSubmitting)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                    <span>Creating account...</span>
+                                }
+                                else
+                                {
+                                    <span>Create Account</span>
+                                }
+                            </button>
+                        </EditForm>
+
+                        <div class="text-center mt-3">
+                            <a href="/account/login" class="text-decoration-none">
+                                Already have an account? <strong>Sign In</strong>
+                            </a>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <p class="text-center text-muted mt-3" style="font-size: 0.8rem;">
+                By creating an account, you agree to our
+                <a href="/terms" class="text-decoration-none">Terms of Service</a> and
+                <a href="/privacy-policy" class="text-decoration-none">Privacy Policy</a>
+                in accordance with the Protection of Personal Information Act (POPIA).
+            </p>
+        </div>
+    </div>
+</div>
+
+@code {
+    private RegisterFormModel _model = new();
+    private bool _isSubmitting;
+    private string? _errorMessage;
+    private string? _successMessage;
+    private List<string> _serverErrors = new();
+
+    private async Task HandleRegistration()
+    {
+        _errorMessage = null;
+        _successMessage = null;
+        _serverErrors.Clear();
+        _isSubmitting = true;
+
+        try
+        {
+            var client = HttpClientFactory.CreateClient("ApiClient");
+
+            var payload = new
+            {
+                email = _model.Email?.Trim(),
+                password = _model.Password,
+                fullName = _model.FullName?.Trim(),
+                companyName = string.IsNullOrWhiteSpace(_model.CompanyName) ? null : _model.CompanyName.Trim()
+            };
+
+            var response = await client.PostAsJsonAsync("/api/auth/register", payload);
+
+            if (response.IsSuccessStatusCode)
+            {
+                _successMessage = "Your account has been created successfully. You can now sign in.";
+                _model = new RegisterFormModel();
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+            {
+                _errorMessage = "An account with this email address already exists. Please sign in or use a different email.";
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+            {
+                await ParseValidationErrors(response);
+            }
+            else
+            {
+                _errorMessage = "An unexpected error occurred. Please try again later.";
+            }
+        }
+        catch (HttpRequestException)
+        {
+            _errorMessage = "Unable to connect to the server. Please check your connection and try again.";
+        }
+        catch (Exception)
+        {
+            _errorMessage = "An unexpected error occurred. Please try again later.";
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+
+    private async Task ParseValidationErrors(HttpResponseMessage response)
+    {
+        try
+        {
+            var content = await response.Content.ReadAsStringAsync();
+            var problemDetails = JsonSerializer.Deserialize<JsonElement>(content);
+
+            if (problemDetails.TryGetProperty("errors", out var errors))
+            {
+                foreach (var field in errors.EnumerateObject())
+                {
+                    foreach (var error in field.Value.EnumerateArray())
+                    {
+                        _serverErrors.Add(error.GetString() ?? "Validation error.");
+                    }
+                }
+            }
+            else
+            {
+                _errorMessage = "Please correct the errors and try again.";
+            }
+        }
+        catch
+        {
+            _errorMessage = "Please correct the errors and try again.";
+        }
+    }
+
+    private sealed class RegisterFormModel
+    {
+        [Required(ErrorMessage = "Full name is required.")]
+        [StringLength(200, MinimumLength = 2, ErrorMessage = "Full name must be between 2 and 200 characters.")]
+        public string? FullName { get; set; }
+
+        [Required(ErrorMessage = "Email is required.")]
+        [EmailAddress(ErrorMessage = "A valid email address is required.")]
+        [StringLength(256, ErrorMessage = "Email must not exceed 256 characters.")]
+        public string? Email { get; set; }
+
+        [Required(ErrorMessage = "Password is required.")]
+        [StringLength(128, MinimumLength = 8, ErrorMessage = "Password must be between 8 and 128 characters.")]
+        [RegularExpression(@"^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[^a-zA-Z0-9]).{8,128}$",
+            ErrorMessage = "Password must contain at least one uppercase letter, one lowercase letter, one digit, and one special character.")]
+        public string? Password { get; set; }
+
+        [Required(ErrorMessage = "Please confirm your password.")]
+        [Compare(nameof(Password), ErrorMessage = "Passwords do not match.")]
+        public string? ConfirmPassword { get; set; }
+
+        [StringLength(200, ErrorMessage = "Company name must not exceed 200 characters.")]
+        public string? CompanyName { get; set; }
+
+        [Range(typeof(bool), "true", "true", ErrorMessage = "You must consent to POPIA to create an account.")]
+        public bool ConsentToPopia { get; set; }
+    }
+}

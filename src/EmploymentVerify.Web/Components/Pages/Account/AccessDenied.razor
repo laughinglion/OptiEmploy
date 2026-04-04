@@ -1,0 +1,51 @@
+@page "/account/access-denied"
+@attribute [AllowAnonymous]
+@layout EmploymentVerify.Web.Components.Layout.MainLayout
+
+<PageTitle>Access Denied - Employment Verify</PageTitle>
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6 text-center">
+            <h2 class="text-danger">Access Denied</h2>
+            <p class="lead">You do not have permission to access this page.</p>
+
+            <AuthorizeView>
+                <Authorized>
+                    @{
+                        var role = context.User.FindFirst(ClaimTypes.Role)?.Value;
+                    }
+                    @if (string.IsNullOrEmpty(role))
+                    {
+                        <div class="alert alert-warning mt-3">
+                            <strong>No role assigned.</strong> Your account is pending role assignment by an administrator.
+                        </div>
+                        <p class="text-muted">
+                            Please contact your system administrator to have a role assigned to your account.
+                        </p>
+                    }
+                    else
+                    {
+                        <div class="alert alert-info mt-3">
+                            Your current role: <RoleBadge Role="@role" />
+                        </div>
+                        <p class="text-muted">
+                            The page you tried to access requires a different role.
+                            If you believe this is an error, please contact your administrator.
+                        </p>
+                    }
+                </Authorized>
+                <NotAuthorized>
+                    <p class="text-muted mt-3">
+                        You need to sign in to access this page.
+                    </p>
+                    <a href="/account/login" class="btn btn-primary me-2">Sign In</a>
+                </NotAuthorized>
+            </AuthorizeView>
+
+            <div class="mt-4">
+                <a href="/" class="btn btn-outline-primary">Return to Dashboard</a>
+            </div>
+        </div>
+    </div>
+</div>

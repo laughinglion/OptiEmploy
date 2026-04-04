@@ -1,0 +1,87 @@
+@inject NavigationManager Navigation
+
+<div class="top-row ps-3 navbar navbar-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="">Employment Verify</a>
+    </div>
+</div>
+
+<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+
+<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
+    <nav class="nav flex-column">
+        <AuthorizeView>
+            <Authorized>
+                @* Dashboard — visible to all authenticated users *@
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                        <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Dashboard
+                    </NavLink>
+                </div>
+
+                @* Requestor section — Submit & view verification requests *@
+                <RoleGuard Roles="@($"{AppRoles.Admin},{AppRoles.Requestor}")">
+                    <div class="nav-item px-3 mt-2">
+                        <small class="text-white-50 text-uppercase fw-bold ps-2">Verifications</small>
+                    </div>
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="verifications/submit">
+                            <span class="bi bi-plus-square-fill-nav-menu" aria-hidden="true"></span> Submit Request
+                        </NavLink>
+                    </div>
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="verifications/my-requests">
+                            <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> My Requests
+                        </NavLink>
+                    </div>
+                </RoleGuard>
+
+                @* Operator section — Work queue for manual verifications *@
+                <RoleGuard Roles="@($"{AppRoles.Admin},{AppRoles.Operator}")">
+                    <div class="nav-item px-3 mt-2">
+                        <small class="text-white-50 text-uppercase fw-bold ps-2">Operations</small>
+                    </div>
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="operations/queue">
+                            <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Work Queue
+                        </NavLink>
+                    </div>
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="operations/verifications">
+                            <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> All Verifications
+                        </NavLink>
+                    </div>
+                </RoleGuard>
+
+                @* Admin section — User management and system settings *@
+                <RoleGuard Roles="@AppRoles.Admin">
+                    <div class="nav-item px-3 mt-2">
+                        <small class="text-white-50 text-uppercase fw-bold ps-2">Administration</small>
+                    </div>
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="admin/users">
+                            <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> User Management
+                        </NavLink>
+                    </div>
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="admin/companies">
+                            <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Companies
+                        </NavLink>
+                    </div>
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="admin/audit-log">
+                            <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Audit Log
+                        </NavLink>
+                    </div>
+                </RoleGuard>
+            </Authorized>
+            <NotAuthorized>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="account/login">
+                        <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Sign In
+                    </NavLink>
+                </div>
+            </NotAuthorized>
+        </AuthorizeView>
+    </nav>
+</div>

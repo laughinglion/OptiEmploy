@@ -1,0 +1,16 @@
+@using EmploymentVerify.Domain.Constants
+
+<span class="badge @GetBadgeClass()">@Role</span>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Role { get; set; } = string.Empty;
+
+    private string GetBadgeClass() => Role switch
+    {
+        AppRoles.Admin => "bg-danger",
+        AppRoles.Operator => "bg-info text-dark",
+        AppRoles.Requestor => "bg-primary",
+        _ => "bg-secondary"
+    };
+}

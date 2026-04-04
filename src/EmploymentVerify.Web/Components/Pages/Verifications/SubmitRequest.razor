@@ -1,0 +1,608 @@
+@page "/verifications/submit"
+@attribute [Authorize(Policy = AuthorizationPolicies.RequireAdminOrRequestor)]
+@using System.ComponentModel.DataAnnotations
+@using System.Text.Json
+@using System.Text.RegularExpressions
+@rendermode InteractiveServer
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager Navigation
+
+<PageTitle>Submit Verification - Employment Verify</PageTitle>
+
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <h2 class="mb-1">Submit Verification Request</h2>
+            <p class="text-muted mb-4">Submit a new employment verification request. All fields marked with <span class="text-danger">*</span> are required.</p>
+
+            @if (!string.IsNullOrEmpty(_successMessage))
+            {
+                <div class="alert alert-success" role="alert">
+                    <h5 class="alert-heading">Request Submitted Successfully</h5>
+                    <p>@_successMessage</p>
+                    <hr />
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-primary" @onclick="ResetForm">Submit Another Request</button>
+                        <a href="/verifications/mine" class="btn btn-sm btn-outline-secondary">View My Requests</a>
+                    </div>
+                </div>
+            }
+            else
+            {
+                @if (!string.IsNullOrEmpty(_errorMessage))
+                {
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        <small>@_errorMessage</small>
+                        <button type="button" class="btn-close btn-close-sm" @onclick="() => _errorMessage = null" aria-label="Close"></button>
+                    </div>
+                }
+
+                @if (_serverErrors.Count > 0)
+                {
+                    <div class="alert alert-danger" role="alert">
+                        <strong>Please correct the following errors:</strong>
+                        <ul class="mb-0 mt-1">
+                            @foreach (var error in _serverErrors)
+                            {
+                                <li>@error</li>
+                            }
+                        </ul>
+                    </div>
+                }
+
+                <div class="card shadow-sm">
+                    <div class="card-header bg-primary text-white">
+                        <strong>New Verification Request</strong>
+                    </div>
+                    <div class="card-body p-4">
+                        <EditForm Model="_model" OnValidSubmit="HandleSubmit" FormName="submitVerification" novalidate>
+                            <DataAnnotationsValidator />
+
+                            @* ── Section 1: Employee Details ── *@
+                            <fieldset class="mb-4">
+                                <legend class="h5 border-bottom pb-2 mb-3">Employee Details</legend>
+
+                                <div class="mb-3">
+                                    <label for="employeeFullName" class="form-label">
+                                        Employee Full Name <span class="text-danger">*</span>
+                                    </label>
+                                    <InputText id="employeeFullName" class="form-control" @bind-Value="_model.EmployeeFullName"
+                                               placeholder="e.g. Sipho Nkosi" aria-required="true" />
+                                    <ValidationMessage For="@(() => _model.EmployeeFullName)" />
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">
+                                        Identification Type <span class="text-danger">*</span>
+                                    </label>
+                                    <div class="d-flex gap-3">
+                                        <div class="form-check">
+                                            <input type="radio" id="idTypeSaId" class="form-check-input" name="idType"
+                                                   checked="@(_model.IdType == IdentificationType.SaIdNumber)"
+                                                   @onchange="() => OnIdTypeChanged(IdentificationType.SaIdNumber)" />
+                                            <label for="idTypeSaId" class="form-check-label">SA ID Number</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input type="radio" id="idTypePassport" class="form-check-input" name="idType"
+                                                   checked="@(_model.IdType == IdentificationType.Passport)"
+                                                   @onchange="() => OnIdTypeChanged(IdentificationType.Passport)" />
+                                            <label for="idTypePassport" class="form-check-label">Passport Number</label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                @if (_model.IdType == IdentificationType.SaIdNumber)
+                                {
+                                    <div class="mb-3">
+                                        <label for="saIdNumber" class="form-label">
+                                            SA ID Number <span class="text-danger">*</span>
+                                        </label>
+                                        <InputText id="saIdNumber" class="form-control" @bind-Value="_model.SaIdNumber"
+                                                   placeholder="13 digit SA ID number" aria-required="true" maxlength="13" />
+                                        <ValidationMessage For="@(() => _model.SaIdNumber)" />
+                                        <small class="form-text text-muted">
+                                            This number will be encrypted at rest in accordance with POPIA.
+                                        </small>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="mb-3">
+                                        <label for="passportNumber" class="form-label">
+                                            Passport Number <span class="text-danger">*</span>
+                                        </label>
+                                        <InputText id="passportNumber" class="form-control" @bind-Value="_model.PassportNumber"
+                                                   placeholder="Passport number" aria-required="true" />
+                                        <ValidationMessage For="@(() => _model.PassportNumber)" />
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label for="passportCountry" class="form-label">
+                                            Passport Country <span class="text-danger">*</span>
+                                        </label>
+                                        <InputText id="passportCountry" class="form-control" @bind-Value="_model.PassportCountry"
+                                                   placeholder="e.g. Zimbabwe, Mozambique" aria-required="true" />
+                                        <ValidationMessage For="@(() => _model.PassportCountry)" />
+                                    </div>
+                                }
+                            </fieldset>
+
+                            @* ── Section 2: Employment Details ── *@
+                            <fieldset class="mb-4">
+                                <legend class="h5 border-bottom pb-2 mb-3">Employment Details</legend>
+
+                                <div class="mb-3">
+                                    <label for="companyName" class="form-label">
+                                        Company Name <span class="text-danger">*</span>
+                                    </label>
+                                    <div class="position-relative">
+                                        <InputText id="companyName" class="form-control" @bind-Value="_model.CompanyName"
+                                                   placeholder="Start typing to search verified companies..."
+                                                   aria-required="true"
+                                                   @oninput="OnCompanySearchInput"
+                                                   @onfocusout="OnCompanySearchFocusOut"
+                                                   autocomplete="off" />
+
+                                        @if (_showCompanySuggestions && _companySuggestions.Count > 0)
+                                        {
+                                            <div class="list-group position-absolute w-100 shadow-sm" style="z-index: 1050; max-height: 250px; overflow-y: auto;">
+                                                @foreach (var company in _companySuggestions)
+                                                {
+                                                    <button type="button"
+                                                            class="list-group-item list-group-item-action py-2"
+                                                            @onmousedown="() => SelectCompany(company)"
+                                                            @onmousedown:preventDefault>
+                                                        <div class="fw-semibold">@company.Name</div>
+                                                        @if (!string.IsNullOrEmpty(company.HrContactName))
+                                                        {
+                                                            <small class="text-muted">HR: @company.HrContactName</small>
+                                                        }
+                                                    </button>
+                                                }
+                                            </div>
+                                        }
+                                    </div>
+                                    <ValidationMessage For="@(() => _model.CompanyName)" />
+
+                                    @if (_selectedCompany is not null)
+                                    {
+                                        <div class="mt-2 p-2 bg-light border rounded d-flex align-items-center justify-content-between">
+                                            <span>
+                                                <span class="badge bg-success me-1">Verified</span>
+                                                <strong>@_selectedCompany.Name</strong>
+                                                @if (!string.IsNullOrEmpty(_selectedCompany.HrContactName))
+                                                {
+                                                    <span class="text-muted ms-2">HR: @_selectedCompany.HrContactName (@_selectedCompany.HrEmail)</span>
+                                                }
+                                            </span>
+                                            <button type="button" class="btn btn-sm btn-outline-danger" @onclick="ClearSelectedCompany">
+                                                Clear
+                                            </button>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <small class="form-text text-muted">
+                                            Select a verified company from the list, or type a company name manually.
+                                            Unverified companies will require manual phone verification by an operator.
+                                        </small>
+                                    }
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="jobTitle" class="form-label">
+                                        Job Title <span class="text-danger">*</span>
+                                    </label>
+                                    <InputText id="jobTitle" class="form-control" @bind-Value="_model.JobTitle"
+                                               placeholder="e.g. Software Developer, Accountant" aria-required="true" />
+                                    <ValidationMessage For="@(() => _model.JobTitle)" />
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="employmentStartDate" class="form-label">
+                                            Employment Start Date <span class="text-danger">*</span>
+                                        </label>
+                                        <InputDate id="employmentStartDate" class="form-control" @bind-Value="_model.EmploymentStartDate"
+                                                   aria-required="true" />
+                                        <ValidationMessage For="@(() => _model.EmploymentStartDate)" />
+                                    </div>
+
+                                    <div class="col-md-6 mb-3">
+                                        <label for="employmentEndDate" class="form-label">
+                                            Employment End Date <span class="text-muted">(optional)</span>
+                                        </label>
+                                        <InputDate id="employmentEndDate" class="form-control" @bind-Value="_model.EmploymentEndDate" />
+                                        <ValidationMessage For="@(() => _model.EmploymentEndDate)" />
+                                        <small class="form-text text-muted">Leave blank if currently employed.</small>
+                                    </div>
+                                </div>
+                            </fieldset>
+
+                            @* ── Section 3: HR Contact Details (optional override) ── *@
+                            <fieldset class="mb-4">
+                                <legend class="h5 border-bottom pb-2 mb-3">
+                                    HR Contact Details <span class="text-muted fs-6 fw-normal">(optional)</span>
+                                </legend>
+
+                                <p class="text-muted small mb-3">
+                                    If you know the HR contact details for this company, you can provide them here.
+                                    For verified companies, these will already be on file.
+                                </p>
+
+                                <div class="mb-3">
+                                    <label for="hrContactName" class="form-label">HR Contact Name</label>
+                                    <InputText id="hrContactName" class="form-control" @bind-Value="_model.HrContactName"
+                                               placeholder="e.g. Nomsa Dlamini" />
+                                    <ValidationMessage For="@(() => _model.HrContactName)" />
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="hrEmail" class="form-label">HR Email</label>
+                                        <InputText id="hrEmail" class="form-control" @bind-Value="_model.HrEmail"
+                                                   placeholder="hr@company.co.za" />
+                                        <ValidationMessage For="@(() => _model.HrEmail)" />
+                                    </div>
+
+                                    <div class="col-md-6 mb-3">
+                                        <label for="hrPhone" class="form-label">HR Phone</label>
+                                        <InputText id="hrPhone" class="form-control" @bind-Value="_model.HrPhone"
+                                                   placeholder="e.g. 011 123 4567" />
+                                        <ValidationMessage For="@(() => _model.HrPhone)" />
+                                    </div>
+                                </div>
+                            </fieldset>
+
+                            @* ── Section 4: POPIA Consent ── *@
+                            <fieldset class="mb-4">
+                                <legend class="h5 border-bottom pb-2 mb-3">Consent</legend>
+
+                                <div class="form-check mb-2">
+                                    <InputCheckbox id="consentPopia" class="form-check-input" @bind-Value="_model.ConsentToPopia" />
+                                    <label for="consentPopia" class="form-check-label">
+                                        I confirm that I have obtained the necessary consent from the individual to process their personal
+                                        information for the purpose of employment verification, in accordance with the
+                                        <a href="/privacy-policy" target="_blank">Protection of Personal Information Act (POPIA)</a>.
+                                        <span class="text-danger">*</span>
+                                    </label>
+                                    <ValidationMessage For="@(() => _model.ConsentToPopia)" />
+                                </div>
+
+                                <div class="form-check">
+                                    <InputCheckbox id="consentAccuracy" class="form-check-input" @bind-Value="_model.ConsentAccuracy" />
+                                    <label for="consentAccuracy" class="form-check-label">
+                                        I confirm that the information provided above is accurate to the best of my knowledge.
+                                        <span class="text-danger">*</span>
+                                    </label>
+                                    <ValidationMessage For="@(() => _model.ConsentAccuracy)" />
+                                </div>
+                            </fieldset>
+
+                            @* ── Submit ── *@
+                            <div class="d-flex justify-content-between align-items-center">
+                                <a href="/verifications/mine" class="btn btn-outline-secondary">Cancel</a>
+
+                                <button type="submit" class="btn btn-primary btn-lg" disabled="@_isSubmitting">
+                                    @if (_isSubmitting)
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                        <span>Submitting...</span>
+                                    }
+                                    else
+                                    {
+                                        <span>Submit Verification Request</span>
+                                    }
+                                </button>
+                            </div>
+                        </EditForm>
+                    </div>
+                </div>
+
+                <p class="text-center text-muted mt-3" style="font-size: 0.8rem;">
+                    All personal information is processed in accordance with the Protection of Personal Information Act (POPIA).
+                    SA ID numbers are encrypted at rest and access is audited.
+                </p>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private VerificationRequestFormModel _model = new();
+    private bool _isSubmitting;
+    private string? _errorMessage;
+    private string? _successMessage;
+    private List<string> _serverErrors = new();
+
+    // Company autocomplete state
+    private List<CompanySuggestion> _companySuggestions = new();
+    private bool _showCompanySuggestions;
+    private CompanySuggestion? _selectedCompany;
+    private CancellationTokenSource? _searchCts;
+
+    private void OnIdTypeChanged(IdentificationType newType)
+    {
+        _model.IdType = newType;
+        // Clear the other field when switching
+        if (newType == IdentificationType.SaIdNumber)
+        {
+            _model.PassportNumber = null;
+            _model.PassportCountry = null;
+        }
+        else
+        {
+            _model.SaIdNumber = null;
+        }
+    }
+
+    private async Task OnCompanySearchInput(ChangeEventArgs e)
+    {
+        var searchTerm = e.Value?.ToString();
+        _model.CompanyName = searchTerm;
+        _selectedCompany = null;
+
+        if (string.IsNullOrWhiteSpace(searchTerm) || searchTerm.Trim().Length < 2)
+        {
+            _companySuggestions.Clear();
+            _showCompanySuggestions = false;
+            return;
+        }
+
+        // Cancel previous search
+        _searchCts?.Cancel();
+        _searchCts = new CancellationTokenSource();
+        var token = _searchCts.Token;
+
+        try
+        {
+            // Debounce: wait briefly before searching
+            await Task.Delay(300, token);
+
+            var client = HttpClientFactory.CreateClient("ApiClient");
+            var response = await client.GetAsync($"/api/companies/search?q={Uri.EscapeDataString(searchTerm)}", token);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var results = await response.Content.ReadFromJsonAsync<List<CompanySuggestion>>(token);
+                _companySuggestions = results ?? new();
+                _showCompanySuggestions = _companySuggestions.Count > 0;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Search was cancelled by a newer search - ignore
+        }
+        catch
+        {
+            // Silently fail - user can still type manually
+            _companySuggestions.Clear();
+            _showCompanySuggestions = false;
+        }
+    }
+
+    private void OnCompanySearchFocusOut()
+    {
+        // Delay hiding to allow click on suggestion
+        _ = Task.Delay(200).ContinueWith(_ =>
+        {
+            _showCompanySuggestions = false;
+            InvokeAsync(StateHasChanged);
+        });
+    }
+
+    private void SelectCompany(CompanySuggestion company)
+    {
+        _selectedCompany = company;
+        _model.CompanyName = company.Name;
+        _model.SelectedCompanyId = company.Id;
+        _showCompanySuggestions = false;
+
+        // Auto-fill HR details from verified company
+        if (!string.IsNullOrEmpty(company.HrContactName))
+            _model.HrContactName = company.HrContactName;
+        if (!string.IsNullOrEmpty(company.HrEmail))
+            _model.HrEmail = company.HrEmail;
+        if (!string.IsNullOrEmpty(company.HrPhone))
+            _model.HrPhone = company.HrPhone;
+    }
+
+    private void ClearSelectedCompany()
+    {
+        _selectedCompany = null;
+        _model.CompanyName = string.Empty;
+        _model.SelectedCompanyId = null;
+    }
+
+    private async Task HandleSubmit()
+    {
+        _errorMessage = null;
+        _successMessage = null;
+        _serverErrors.Clear();
+
+        // Custom cross-field validation
+        if (_model.IdType == IdentificationType.SaIdNumber && string.IsNullOrWhiteSpace(_model.SaIdNumber))
+        {
+            _serverErrors.Add("SA ID Number is required when SA ID Number is selected as the identification type.");
+            return;
+        }
+        if (_model.IdType == IdentificationType.Passport)
+        {
+            if (string.IsNullOrWhiteSpace(_model.PassportNumber))
+                _serverErrors.Add("Passport Number is required when Passport is selected as the identification type.");
+            if (string.IsNullOrWhiteSpace(_model.PassportCountry))
+                _serverErrors.Add("Passport Country is required when Passport is selected as the identification type.");
+            if (_serverErrors.Count > 0) return;
+        }
+
+        if (_model.EmploymentEndDate.HasValue && _model.EmploymentEndDate < _model.EmploymentStartDate)
+        {
+            _serverErrors.Add("Employment end date cannot be before the start date.");
+            return;
+        }
+
+        _isSubmitting = true;
+
+        try
+        {
+            var client = HttpClientFactory.CreateClient("ApiClient");
+
+            var payload = new
+            {
+                employeeFullName = _model.EmployeeFullName?.Trim(),
+                idType = _model.IdType.ToString(),
+                saIdNumber = _model.IdType == IdentificationType.SaIdNumber ? _model.SaIdNumber?.Trim() : null,
+                passportNumber = _model.IdType == IdentificationType.Passport ? _model.PassportNumber?.Trim() : null,
+                passportCountry = _model.IdType == IdentificationType.Passport ? _model.PassportCountry?.Trim() : null,
+                companyName = _model.CompanyName?.Trim(),
+                selectedCompanyId = _model.SelectedCompanyId,
+                jobTitle = _model.JobTitle?.Trim(),
+                employmentStartDate = _model.EmploymentStartDate,
+                employmentEndDate = _model.EmploymentEndDate,
+                hrContactName = string.IsNullOrWhiteSpace(_model.HrContactName) ? null : _model.HrContactName.Trim(),
+                hrEmail = string.IsNullOrWhiteSpace(_model.HrEmail) ? null : _model.HrEmail.Trim(),
+                hrPhone = string.IsNullOrWhiteSpace(_model.HrPhone) ? null : _model.HrPhone.Trim(),
+                consentToPopia = _model.ConsentToPopia,
+                consentAccuracy = _model.ConsentAccuracy
+            };
+
+            var response = await client.PostAsJsonAsync("/api/verifications", payload);
+
+            if (response.IsSuccessStatusCode)
+            {
+                _successMessage = "Your employment verification request has been submitted and is being processed. " +
+                                  "You will be notified when the verification is complete.";
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+            {
+                await ParseValidationErrors(response);
+            }
+            else
+            {
+                _errorMessage = "An unexpected error occurred. Please try again later.";
+            }
+        }
+        catch (HttpRequestException)
+        {
+            _errorMessage = "Unable to connect to the server. Please check your connection and try again.";
+        }
+        catch (Exception)
+        {
+            _errorMessage = "An unexpected error occurred. Please try again later.";
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+
+    private async Task ParseValidationErrors(HttpResponseMessage response)
+    {
+        try
+        {
+            var content = await response.Content.ReadAsStringAsync();
+            var problemDetails = JsonSerializer.Deserialize<JsonElement>(content);
+
+            if (problemDetails.TryGetProperty("errors", out var errors))
+            {
+                foreach (var field in errors.EnumerateObject())
+                {
+                    foreach (var error in field.Value.EnumerateArray())
+                    {
+                        _serverErrors.Add(error.GetString() ?? "Validation error.");
+                    }
+                }
+            }
+            else
+            {
+                _errorMessage = "Please correct the errors and try again.";
+            }
+        }
+        catch
+        {
+            _errorMessage = "Please correct the errors and try again.";
+        }
+    }
+
+    private void ResetForm()
+    {
+        _model = new VerificationRequestFormModel();
+        _successMessage = null;
+        _errorMessage = null;
+        _serverErrors.Clear();
+        _selectedCompany = null;
+        _companySuggestions.Clear();
+        _showCompanySuggestions = false;
+    }
+
+    // ── Enums & Models ──
+
+    private enum IdentificationType
+    {
+        SaIdNumber,
+        Passport
+    }
+
+    private sealed class CompanySuggestion
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string? HrContactName { get; set; }
+        public string? HrEmail { get; set; }
+        public string? HrPhone { get; set; }
+    }
+
+    private sealed class VerificationRequestFormModel
+    {
+        [Required(ErrorMessage = "Employee full name is required.")]
+        [StringLength(200, MinimumLength = 2, ErrorMessage = "Employee full name must be between 2 and 200 characters.")]
+        public string? EmployeeFullName { get; set; }
+
+        public IdentificationType IdType { get; set; } = IdentificationType.SaIdNumber;
+
+        [RegularExpression(@"^\d{13}$", ErrorMessage = "SA ID Number must be exactly 13 digits.")]
+        public string? SaIdNumber { get; set; }
+
+        [StringLength(20, MinimumLength = 4, ErrorMessage = "Passport number must be between 4 and 20 characters.")]
+        public string? PassportNumber { get; set; }
+
+        [StringLength(100, ErrorMessage = "Passport country must not exceed 100 characters.")]
+        public string? PassportCountry { get; set; }
+
+        [Required(ErrorMessage = "Company name is required.")]
+        [StringLength(300, MinimumLength = 2, ErrorMessage = "Company name must be between 2 and 300 characters.")]
+        public string? CompanyName { get; set; }
+
+        /// <summary>
+        /// If a verified company was selected from the autocomplete, its ID is stored here.
+        /// Null means the user typed a company name manually (unverified company).
+        /// </summary>
+        public Guid? SelectedCompanyId { get; set; }
+
+        [Required(ErrorMessage = "Job title is required.")]
+        [StringLength(200, MinimumLength = 2, ErrorMessage = "Job title must be between 2 and 200 characters.")]
+        public string? JobTitle { get; set; }
+
+        [Required(ErrorMessage = "Employment start date is required.")]
+        public DateOnly? EmploymentStartDate { get; set; }
+
+        public DateOnly? EmploymentEndDate { get; set; }
+
+        [StringLength(200, ErrorMessage = "HR contact name must not exceed 200 characters.")]
+        public string? HrContactName { get; set; }
+
+        [EmailAddress(ErrorMessage = "A valid email address is required for HR contact.")]
+        [StringLength(256, ErrorMessage = "HR email must not exceed 256 characters.")]
+        public string? HrEmail { get; set; }
+
+        [StringLength(20, ErrorMessage = "HR phone must not exceed 20 characters.")]
+        [RegularExpression(@"^[\d\s\+\-\(\)]+$", ErrorMessage = "HR phone number contains invalid characters.")]
+        public string? HrPhone { get; set; }
+
+        [Range(typeof(bool), "true", "true", ErrorMessage = "You must confirm POPIA consent to submit a verification request.")]
+        public bool ConsentToPopia { get; set; }
+
+        [Range(typeof(bool), "true", "true", ErrorMessage = "You must confirm the accuracy of the information provided.")]
+        public bool ConsentAccuracy { get; set; }
+    }
+}

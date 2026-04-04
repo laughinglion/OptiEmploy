@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/EmploymentVerify.Api/EmploymentVerify.Api.csproj" />
+    <Project Path="src/EmploymentVerify.Application/EmploymentVerify.Application.csproj" />
+    <Project Path="src/EmploymentVerify.Domain/EmploymentVerify.Domain.csproj" />
+    <Project Path="src/EmploymentVerify.Infrastructure/EmploymentVerify.Infrastructure.csproj" />
+    <Project Path="src/EmploymentVerify.Web/EmploymentVerify.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/EmploymentVerify.Tests/EmploymentVerify.Tests.csproj" />
+  </Folder>
+</Solution>

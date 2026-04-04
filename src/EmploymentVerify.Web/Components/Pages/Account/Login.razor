@@ -1,0 +1,85 @@
+@page "/account/login"
+@attribute [AllowAnonymous]
+@layout EmploymentVerify.Web.Components.Layout.MainLayout
+
+<PageTitle>Sign In - Employment Verify</PageTitle>
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-5">
+            <div class="card shadow">
+                <div class="card-body p-4">
+                    <h3 class="card-title text-center mb-1">Sign In</h3>
+                    <p class="text-center text-muted mb-4">Welcome back to Employment Verify</p>
+
+                    @if (!string.IsNullOrEmpty(_errorMessage))
+                    {
+                        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                            <small>@_errorMessage</small>
+                            <button type="button" class="btn-close btn-close-sm" @onclick="() => _errorMessage = null" aria-label="Close"></button>
+                        </div>
+                    }
+
+                    @* Email/password login form *@
+                    <form method="post" action="/account/login" class="mb-0">
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email address</label>
+                            <input type="email" class="form-control" id="email" name="email"
+                                   placeholder="you@example.com" required autocomplete="email" />
+                        </div>
+                        <div class="mb-3">
+                            <label for="password" class="form-label">Password</label>
+                            <input type="password" class="form-control" id="password" name="password"
+                                   placeholder="Enter your password" required autocomplete="current-password" />
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">Sign In</button>
+                    </form>
+
+                    <EmploymentVerify.Web.Components.Shared.SocialLoginButtons
+                        ReturnUrl="@_returnUrl"
+                        ActionVerb="Sign in"
+                        DividerText="Or continue with" />
+
+                    <div class="text-center mt-3">
+                        <a href="/account/register" class="text-decoration-none">
+                            Don't have an account? <strong>Register</strong>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <p class="text-center text-muted mt-3" style="font-size: 0.8rem;">
+                By signing in, you agree to our
+                <a href="/terms" class="text-decoration-none">Terms of Service</a> and
+                <a href="/privacy-policy" class="text-decoration-none">Privacy Policy</a>
+                in accordance with the Protection of Personal Information Act (POPIA).
+            </p>
+        </div>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "returnUrl")]
+    private string? ReturnUrl { get; set; }
+
+    [SupplyParameterFromQuery(Name = "error")]
+    private string? Error { get; set; }
+
+    private string _returnUrl = "/";
+    private string? _errorMessage;
+
+    protected override void OnInitialized()
+    {
+        _returnUrl = ReturnUrl ?? "/";
+
+        _errorMessage = Error switch
+        {
+            "google-auth-failed" => "Google sign-in failed. Please try again or use another method.",
+            "google-callback-failed" => "Unable to complete Google sign-in. Please try again.",
+            "microsoft-auth-failed" => "Microsoft sign-in failed. Please try again or use another method.",
+            "microsoft-callback-failed" => "Unable to complete Microsoft sign-in. Please try again.",
+            "access-denied" => "You do not have permission to access that page.",
+            _ => null
+        };
+    }
+}

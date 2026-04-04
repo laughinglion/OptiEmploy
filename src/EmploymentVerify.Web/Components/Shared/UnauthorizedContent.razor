@@ -1,0 +1,41 @@
+@using System.Security.Claims
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6 text-center">
+            <div class="mb-4">
+                <span class="bi bi-shield-lock" style="font-size: 3rem; color: var(--bs-danger);"></span>
+            </div>
+            <h2 class="text-danger">Access Denied</h2>
+            <p class="lead">You do not have the required role to access this page.</p>
+
+            <AuthorizeView>
+                <Authorized>
+                    <div class="alert alert-warning mt-3">
+                        <strong>Your current role:</strong>
+                        @{
+                            var role = context.User.FindFirst(ClaimTypes.Role)?.Value ?? "None assigned";
+                        }
+                        <RoleBadge Role="@role" />
+                    </div>
+                    @if (string.IsNullOrEmpty(context.User.FindFirst(ClaimTypes.Role)?.Value))
+                    {
+                        <p class="text-muted">
+                            Your account has not been assigned a role yet. Please contact your administrator.
+                        </p>
+                    }
+                    else
+                    {
+                        <p class="text-muted">
+                            If you believe this is an error, please contact your administrator.
+                        </p>
+                    }
+                </Authorized>
+            </AuthorizeView>
+
+            <div class="mt-4">
+                <a href="/" class="btn btn-primary me-2">Return to Dashboard</a>
+            </div>
+        </div>
+    </div>
+</div>

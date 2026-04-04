@@ -1,0 +1,390 @@
+@page "/operations/queue"
+@attribute [Authorize(Policy = AuthorizationPolicies.RequireAdminOrOperator)]
+@rendermode InteractiveServer
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager Navigation
+
+<PageTitle>Work Queue - Employment Verify</PageTitle>
+
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h2 class="mb-1">Operator Work Queue</h2>
+            <p class="text-muted mb-0">Pending verification requests that require manual follow-up via phone call.</p>
+        </div>
+        <button class="btn btn-outline-secondary" @onclick="LoadQueueAsync" disabled="@_isLoading">
+            <span class="bi bi-arrow-clockwise me-1" aria-hidden="true"></span> Refresh
+        </button>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            @_errorMessage
+            <button type="button" class="btn-close" @onclick="() => _errorMessage = null"></button>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(_successMessage))
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            @_successMessage
+            <button type="button" class="btn-close" @onclick="() => _successMessage = null"></button>
+        </div>
+    }
+
+    <div class="card shadow-sm">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span>Pending Requests</span>
+            @if (_queue is not null)
+            {
+                <span class="badge bg-secondary">@_queue.Count items</span>
+            }
+        </div>
+        <div class="card-body p-0">
+            @if (_isLoading)
+            {
+                <div class="text-center p-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="text-muted mt-2">Loading work queue...</p>
+                </div>
+            }
+            else if (_queue is null || _queue.Count == 0)
+            {
+                <div class="text-center p-5">
+                    <p class="text-muted mb-0">The queue is empty. No pending verifications require manual follow-up.</p>
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Employee Name</th>
+                                <th>Company</th>
+                                <th>HR Phone</th>
+                                <th>Submitted</th>
+                                <th class="text-center">Status</th>
+                                <th class="text-center">Consent</th>
+                                <th class="text-end">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in _queue)
+                            {
+                                <tr>
+                                    <td><strong>@item.EmployeeFullName</strong></td>
+                                    <td>@item.CompanyName</td>
+                                    <td>
+                                        @if (!string.IsNullOrEmpty(item.HrContactPhone))
+                                        {
+                                            <a href="tel:@item.HrContactPhone">@item.HrContactPhone</a>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">—</span>
+                                        }
+                                    </td>
+                                    <td><small>@item.SubmittedAt.ToLocalTime().ToString("dd MMM yyyy HH:mm")</small></td>
+                                    <td class="text-center">
+                                        @StatusBadgeHtml(item.Status)
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-light text-dark border">@item.ConsentType</span>
+                                    </td>
+                                    <td class="text-end">
+                                        <button class="btn btn-sm btn-primary"
+                                                @onclick="() => ToggleCallForm(item.Id)">
+                                            @(_activeCallFormId == item.Id ? "Cancel" : "Record Call")
+                                        </button>
+                                    </td>
+                                </tr>
+
+                                @if (_activeCallFormId == item.Id)
+                                {
+                                    <tr class="table-light">
+                                        <td colspan="7">
+                                            <div class="p-4 border rounded bg-white">
+                                                <h6 class="mb-3">Record Call Outcome — <strong>@item.EmployeeFullName</strong> at <strong>@item.CompanyName</strong></h6>
+
+                                                @if (_callFormErrors.Count > 0)
+                                                {
+                                                    <div class="alert alert-danger py-2">
+                                                        <ul class="mb-0">
+                                                            @foreach (var err in _callFormErrors)
+                                                            {
+                                                                <li>@err</li>
+                                                            }
+                                                        </ul>
+                                                    </div>
+                                                }
+
+                                                <div class="row g-3">
+                                                    <div class="col-md-4">
+                                                        <label class="form-label">Call Outcome <span class="text-danger">*</span></label>
+                                                        <select class="form-select" @bind="_callForm.CallOutcome">
+                                                            <option value="">— Select outcome —</option>
+                                                            <option value="Confirmed">Confirmed</option>
+                                                            <option value="Denied">Denied</option>
+                                                            <option value="Unreachable">Unreachable</option>
+                                                            <option value="CallbackScheduled">Callback Scheduled</option>
+                                                        </select>
+                                                    </div>
+
+                                                    <div class="col-md-8">
+                                                        <label class="form-label">Notes <span class="text-danger">*</span></label>
+                                                        <textarea class="form-control" rows="2"
+                                                                  placeholder="Notes about the call..."
+                                                                  @bind="_callForm.Notes"></textarea>
+                                                    </div>
+
+                                                    @if (_callForm.CallOutcome == "Confirmed")
+                                                    {
+                                                        <div class="col-12">
+                                                            <div class="alert alert-info py-2 mb-0">
+                                                                <strong>Confirmation details</strong> — enter any corrections below (optional)
+                                                            </div>
+                                                        </div>
+
+                                                        <div class="col-md-4">
+                                                            <label class="form-label">Confirmed Job Title</label>
+                                                            <input type="text" class="form-control"
+                                                                   placeholder="Leave blank if same as stated"
+                                                                   @bind="_callForm.ConfirmedJobTitle" />
+                                                        </div>
+
+                                                        <div class="col-md-3">
+                                                            <label class="form-label">Start Date</label>
+                                                            <input type="date" class="form-control"
+                                                                   @bind="_callForm.ConfirmedStartDate" />
+                                                        </div>
+
+                                                        <div class="col-md-3">
+                                                            <label class="form-label">End Date</label>
+                                                            <input type="date" class="form-control"
+                                                                   @bind="_callForm.ConfirmedEndDate" />
+                                                        </div>
+
+                                                        <div class="col-md-2 d-flex align-items-end">
+                                                            <div class="form-check mb-2">
+                                                                <input type="checkbox" class="form-check-input"
+                                                                       id="currentlyEmployed_@item.Id"
+                                                                       @bind="_callForm.IsCurrentlyEmployed" />
+                                                                <label class="form-check-label" for="currentlyEmployed_@item.Id">
+                                                                    Currently Employed
+                                                                </label>
+                                                            </div>
+                                                        </div>
+                                                    }
+                                                </div>
+
+                                                <div class="mt-3 d-flex gap-2">
+                                                    <button class="btn btn-success" @onclick="() => SubmitCallAsync(item.Id)"
+                                                            disabled="@_isSubmittingCall">
+                                                        @if (_isSubmittingCall)
+                                                        {
+                                                            <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                                                        }
+                                                        Save Outcome
+                                                    </button>
+                                                    <button class="btn btn-outline-secondary" @onclick="() => ToggleCallForm(item.Id)"
+                                                            disabled="@_isSubmittingCall">
+                                                        Cancel
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<WorkQueueItem>? _queue;
+    private bool _isLoading = true;
+    private string? _errorMessage;
+    private string? _successMessage;
+
+    // Call form state
+    private Guid? _activeCallFormId;
+    private CallFormModel _callForm = new();
+    private List<string> _callFormErrors = new();
+    private bool _isSubmittingCall;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadQueueAsync();
+    }
+
+    private async Task LoadQueueAsync()
+    {
+        _isLoading = true;
+        _errorMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            var client = HttpClientFactory.CreateClient("ApiClient");
+            var response = await client.GetAsync("/api/verifications/work-queue");
+
+            if (response.IsSuccessStatusCode)
+            {
+                _queue = await response.Content.ReadFromJsonAsync<List<WorkQueueItem>>() ?? new();
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            {
+                Navigation.NavigateTo("/account/login");
+            }
+            else
+            {
+                _errorMessage = $"Failed to load work queue. Server returned {(int)response.StatusCode}.";
+                _queue = new();
+            }
+        }
+        catch (HttpRequestException)
+        {
+            _errorMessage = "Unable to connect to the server. Please check your connection and try again.";
+            _queue = new();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void ToggleCallForm(Guid id)
+    {
+        if (_activeCallFormId == id)
+        {
+            _activeCallFormId = null;
+            _callForm = new();
+            _callFormErrors.Clear();
+        }
+        else
+        {
+            _activeCallFormId = id;
+            _callForm = new();
+            _callFormErrors.Clear();
+        }
+    }
+
+    private async Task SubmitCallAsync(Guid id)
+    {
+        _callFormErrors.Clear();
+
+        if (string.IsNullOrWhiteSpace(_callForm.CallOutcome))
+            _callFormErrors.Add("Call outcome is required.");
+        if (string.IsNullOrWhiteSpace(_callForm.Notes))
+            _callFormErrors.Add("Notes are required.");
+
+        if (_callFormErrors.Count > 0) return;
+
+        _isSubmittingCall = true;
+
+        try
+        {
+            var client = HttpClientFactory.CreateClient("ApiClient");
+
+            DateOnly? confirmedStart = _callForm.ConfirmedStartDate.HasValue
+                ? DateOnly.FromDateTime(_callForm.ConfirmedStartDate.Value)
+                : null;
+            DateOnly? confirmedEnd = _callForm.ConfirmedEndDate.HasValue
+                ? DateOnly.FromDateTime(_callForm.ConfirmedEndDate.Value)
+                : null;
+
+            var payload = new
+            {
+                callOutcome = _callForm.CallOutcome,
+                notes = _callForm.Notes,
+                confirmedJobTitle = string.IsNullOrWhiteSpace(_callForm.ConfirmedJobTitle) ? null : _callForm.ConfirmedJobTitle.Trim(),
+                confirmedStartDate = confirmedStart,
+                confirmedEndDate = confirmedEnd,
+                isCurrentlyEmployed = _callForm.CallOutcome == "Confirmed" ? _callForm.IsCurrentlyEmployed : (bool?)null,
+                responseNotes = (string?)null
+            };
+
+            var response = await client.PostAsJsonAsync($"/api/verifications/{id}/operator-call", payload);
+
+            if (response.IsSuccessStatusCode)
+            {
+                _successMessage = "Call outcome recorded successfully.";
+                _activeCallFormId = null;
+                _callForm = new();
+                await LoadQueueAsync();
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+            {
+                var content = await response.Content.ReadAsStringAsync();
+                _callFormErrors.Add($"Validation failed: {content}");
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                _callFormErrors.Add("Verification not found. It may have been updated by another operator.");
+            }
+            else
+            {
+                _callFormErrors.Add($"An unexpected error occurred. Server returned {(int)response.StatusCode}.");
+            }
+        }
+        catch (HttpRequestException)
+        {
+            _callFormErrors.Add("Unable to connect to the server. Please try again.");
+        }
+        finally
+        {
+            _isSubmittingCall = false;
+        }
+    }
+
+    // ── Helpers ──
+
+    private static RenderFragment StatusBadgeHtml(string status) => builder =>
+    {
+        var (cssClass, label) = status switch
+        {
+            "Pending"         => ("bg-warning text-dark", "Pending"),
+            "EmailSent"       => ("bg-primary", "Email Sent"),
+            "InProgress"      => ("bg-warning text-dark", "In Progress"),
+            "Confirmed"       => ("bg-success", "Confirmed"),
+            "Denied"          => ("bg-danger", "Denied"),
+            "UnableToVerify"  => ("bg-secondary", "Unable to Verify"),
+            _                 => ("bg-secondary", status)
+        };
+        builder.OpenElement(0, "span");
+        builder.AddAttribute(1, "class", $"badge {cssClass}");
+        builder.AddContent(2, label);
+        builder.CloseElement();
+    };
+
+    // ── Local DTOs ──
+
+    private sealed class WorkQueueItem
+    {
+        public Guid Id { get; set; }
+        public string EmployeeFullName { get; set; } = string.Empty;
+        public string CompanyName { get; set; } = string.Empty;
+        public string? HrContactPhone { get; set; }
+        public DateTime SubmittedAt { get; set; }
+        public string Status { get; set; } = string.Empty;
+        public string ConsentType { get; set; } = string.Empty;
+    }
+
+    private sealed class CallFormModel
+    {
+        public string CallOutcome { get; set; } = string.Empty;
+        public string Notes { get; set; } = string.Empty;
+        public string? ConfirmedJobTitle { get; set; }
+        public DateTime? ConfirmedStartDate { get; set; }
+        public DateTime? ConfirmedEndDate { get; set; }
+        public bool IsCurrentlyEmployed { get; set; }
+    }
+}

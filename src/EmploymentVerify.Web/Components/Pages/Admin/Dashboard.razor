@@ -1,0 +1,173 @@
+@page "/admin/dashboard"
+@attribute [Authorize(Policy = AuthorizationPolicies.RequireAdmin)]
+@rendermode InteractiveServer
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>Admin Dashboard - Employment Verify</PageTitle>
+
+<div class="container-fluid mt-4">
+    <h2 class="mb-1">Admin Dashboard</h2>
+    <p class="text-muted mb-4">System-wide verification statistics and activity overview.</p>
+
+    @if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            @_errorMessage
+            <button type="button" class="btn-close" @onclick="() => _errorMessage = null"></button>
+        </div>
+    }
+
+    @if (_isLoading)
+    {
+        <div class="text-center p-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="text-muted mt-2">Loading statistics...</p>
+        </div>
+    }
+    else if (_stats is not null)
+    {
+        @* ── Stat Cards ── *@
+        <div class="row g-3 mb-4">
+            <div class="col-sm-6 col-xl-2">
+                <div class="card border-0 shadow-sm text-center">
+                    <div class="card-body">
+                        <div class="fs-2 fw-bold text-primary">@_stats.TotalToday</div>
+                        <div class="text-muted small">Today</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-2">
+                <div class="card border-0 shadow-sm text-center">
+                    <div class="card-body">
+                        <div class="fs-2 fw-bold text-info">@_stats.TotalThisMonth</div>
+                        <div class="text-muted small">This Month</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-2">
+                <div class="card border-0 shadow-sm text-center">
+                    <div class="card-body">
+                        <div class="fs-2 fw-bold text-success">@_stats.ConfirmedCount</div>
+                        <div class="text-muted small">Confirmed</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-2">
+                <div class="card border-0 shadow-sm text-center">
+                    <div class="card-body">
+                        <div class="fs-2 fw-bold text-danger">@_stats.DeniedCount</div>
+                        <div class="text-muted small">Denied</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-2">
+                <div class="card border-0 shadow-sm text-center">
+                    <div class="card-body">
+                        <div class="fs-2 fw-bold text-warning">@_stats.PendingCount</div>
+                        <div class="text-muted small">Pending</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-2">
+                <div class="card border-0 shadow-sm text-center">
+                    <div class="card-body">
+                        <div class="fs-2 fw-bold text-secondary">@_stats.ConfirmationRate.ToString("F1")%</div>
+                        <div class="text-muted small">Confirmation Rate</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @* ── Quick Links ── *@
+        <div class="row g-3">
+            <div class="col-md-4">
+                <div class="card border-primary shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title text-primary">All Verifications</h5>
+                        <p class="card-text text-muted small">Browse and filter all verification requests in the system.</p>
+                        <a href="/operations/verifications" class="btn btn-primary btn-sm">View All</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card border-info shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title text-info">Work Queue</h5>
+                        <p class="card-text text-muted small">Pending requests requiring manual operator follow-up.</p>
+                        <a href="/operations/queue" class="btn btn-info btn-sm">View Queue</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card border-secondary shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title text-secondary">User Management</h5>
+                        <p class="card-text text-muted small">Assign roles and manage user accounts.</p>
+                        <a href="/admin/users" class="btn btn-secondary btn-sm">Manage Users</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <div class="mt-3">
+        <button class="btn btn-sm btn-outline-secondary" @onclick="LoadStatsAsync" disabled="@_isLoading">
+            <span class="bi bi-arrow-clockwise me-1" aria-hidden="true"></span> Refresh Stats
+        </button>
+    </div>
+</div>
+
+@code {
+    private StatsDto? _stats;
+    private bool _isLoading = true;
+    private string? _errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadStatsAsync();
+    }
+
+    private async Task LoadStatsAsync()
+    {
+        _isLoading = true;
+        _errorMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            var client = HttpClientFactory.CreateClient("ApiClient");
+            var response = await client.GetAsync("/api/verifications/stats");
+
+            if (response.IsSuccessStatusCode)
+            {
+                _stats = await response.Content.ReadFromJsonAsync<StatsDto>();
+            }
+            else
+            {
+                _errorMessage = $"Failed to load statistics. Server returned {(int)response.StatusCode}.";
+            }
+        }
+        catch (HttpRequestException)
+        {
+            _errorMessage = "Unable to connect to the server. Please check your connection and try again.";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    // ── Local DTOs ──
+
+    private sealed class StatsDto
+    {
+        public int TotalToday { get; set; }
+        public int TotalThisMonth { get; set; }
+        public int ConfirmedCount { get; set; }
+        public int DeniedCount { get; set; }
+        public int PendingCount { get; set; }
+        public decimal ConfirmationRate { get; set; }
+    }
+}

@@ -1,0 +1,58 @@
+@inherits LayoutComponentBase
+
+<div class="page">
+    <div class="sidebar">
+        <NavMenu />
+    </div>
+
+    <main>
+        <div class="top-row px-4">
+            <AuthorizeView>
+                <Authorized>
+                    <span class="me-3 text-muted">
+                        @context.User.FindFirst(ClaimTypes.Name)?.Value
+                        @{
+                            var role = context.User.FindFirst(ClaimTypes.Role)?.Value;
+                        }
+                        @if (!string.IsNullOrEmpty(role))
+                        {
+                            <RoleBadge Role="@role" />
+                        }
+                        else
+                        {
+                            <span class="badge bg-warning text-dark ms-1">No Role</span>
+                        }
+                    </span>
+                    <a href="/account/sign-out" class="btn btn-outline-secondary btn-sm">Sign Out</a>
+                </Authorized>
+                <NotAuthorized>
+                    <a href="/account/login" class="btn btn-primary btn-sm">Sign In</a>
+                </NotAuthorized>
+            </AuthorizeView>
+        </div>
+
+        <article class="content px-4">
+            <AuthorizeView>
+                <Authorized>
+                    @{
+                        var userRole = context.User.FindFirst(ClaimTypes.Role)?.Value;
+                    }
+                    @if (string.IsNullOrEmpty(userRole))
+                    {
+                        <div class="alert alert-warning mt-3" role="alert">
+                            <strong>Account Pending:</strong> Your account has not yet been assigned a role.
+                            Please contact your administrator to get access to the platform features.
+                        </div>
+                    }
+                </Authorized>
+            </AuthorizeView>
+            @Body
+        </article>
+    </main>
+</div>
+
+<div id="blazor-error-ui" data-nosnippet>
+    An unhandled error has occurred.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">🗙</span>
+</div>

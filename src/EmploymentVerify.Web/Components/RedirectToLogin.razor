@@ -1,0 +1,32 @@
+@using System.Security.Claims
+@inject NavigationManager Navigation
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthState { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthState is not null)
+        {
+            var state = await AuthState;
+            if (state.User.Identity is { IsAuthenticated: true })
+            {
+                // User is authenticated but not authorized for this route — show access denied
+                Navigation.NavigateTo("/account/access-denied", forceLoad: true);
+                return;
+            }
+        }
+
+        // Not authenticated — redirect to login with return URL
+        var currentUri = Navigation.Uri;
+        var baseUri = Navigation.BaseUri;
+
+        // Compute the relative path for the return URL
+        var returnUrl = currentUri.StartsWith(baseUri, StringComparison.OrdinalIgnoreCase)
+            ? "/" + currentUri[baseUri.Length..]
+            : "/";
+
+        Navigation.NavigateTo($"/account/login?returnUrl={Uri.EscapeDataString(returnUrl)}", forceLoad: true);
+    }
+}

@@ -1,0 +1,15 @@
+C:\code\employment\src\EmploymentVerify.Application\bin\Debug\net10.0\EmploymentVerify.Application.deps.json
+C:\code\employment\src\EmploymentVerify.Application\bin\Debug\net10.0\EmploymentVerify.Application.dll
+C:\code\employment\src\EmploymentVerify.Application\bin\Debug\net10.0\EmploymentVerify.Application.pdb
+C:\code\employment\src\EmploymentVerify.Application\bin\Debug\net10.0\EmploymentVerify.Domain.dll
+C:\code\employment\src\EmploymentVerify.Application\bin\Debug\net10.0\EmploymentVerify.Domain.pdb
+C:\code\employment\src\EmploymentVerify.Application\obj\Debug\net10.0\EmploymentVerify.Application.csproj.AssemblyReference.cache
+C:\code\employment\src\EmploymentVerify.Application\obj\Debug\net10.0\EmploymentVerify.Application.GeneratedMSBuildEditorConfig.editorconfig
+C:\code\employment\src\EmploymentVerify.Application\obj\Debug\net10.0\EmploymentVerify.Application.AssemblyInfoInputs.cache
+C:\code\employment\src\EmploymentVerify.Application\obj\Debug\net10.0\EmploymentVerify.Application.AssemblyInfo.cs
+C:\code\employment\src\EmploymentVerify.Application\obj\Debug\net10.0\EmploymentVerify.Application.csproj.CoreCompileInputs.cache
+C:\code\employment\src\EmploymentVerify.Application\obj\Debug\net10.0\Employme.64274D51.Up2Date
+C:\code\employment\src\EmploymentVerify.Application\obj\Debug\net10.0\EmploymentVerify.Application.dll
+C:\code\employment\src\EmploymentVerify.Application\obj\Debug\net10.0\refint\EmploymentVerify.Application.dll
+C:\code\employment\src\EmploymentVerify.Application\obj\Debug\net10.0\EmploymentVerify.Application.pdb
+C:\code\employment\src\EmploymentVerify.Application\obj\Debug\net10.0\ref\EmploymentVerify.Application.dll

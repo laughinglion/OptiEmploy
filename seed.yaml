@@ -1,0 +1,311 @@
+goal: >
+  Build a SaaS web application for South African companies that provides employment
+  verification services. The platform allows requestors (employers, landlords, financial
+  institutions) to submit verification requests for individuals, which are then confirmed
+  via automated emails to HR departments of verified companies or manual phone calls by
+  internal operators. HR receives a unique link to a pre-filled form where they can
+  confirm, correct, or deny employment details.
+
+constraints:
+  - C# .NET 10 (latest)
+  - Blazor Server for frontend
+  - CQRS architecture pattern
+  - PostgreSQL database
+  - SMTP for email delivery (self-managed)
+  - Self-hosted on VPS (no cloud-specific dependencies)
+  - South African market — must comply with POPIA (Protection of Personal Information Act)
+  - No external AI/ML services
+  - Single-tenant application
+
+acceptance_criteria:
+  - "Users can register with email/password"
+  - "Users can optionally sign in via SSO (Google, Microsoft)"
+  - "Three distinct roles enforced: Admin, Requestor, Operator"
+  - "Role-based access control restricts pages and actions per role"
+  - "Admin can create, edit, and delete companies in the verified company directory"
+  - "Each company record includes: name, registration number, HR contact name, HR email, HR phone, force-call flag"
+  - "Admin can flag a company as force-call only (skip email, always phone)"
+  - "Requestor can submit a single verification request with: employee full name, SA ID number or passport, company name (selected from directory or free-text), job title, employment start date, employment end date (if applicable), HR contact details (if known)"
+  - "Requestor must affirm POPIA consent checkbox before submission"
+  - "System supports both consent models: requestor-warranted consent AND direct employee consent"
+  - "On submission, if the company is in the verified directory and NOT flagged force-call, system auto-sends a templated email to the HR contact"
+  - "Email contains a unique, time-limited link to a verification confirmation page"
+  - "HR confirmation page displays pre-filled employee details (name, ID, role, dates)"
+  - "HR can confirm all details, correct specific fields, or deny employment"
+  - "HR response is recorded and the verification status updates automatically"
+  - "If company is flagged force-call, not in directory, or email verification fails/times out, request is routed to Operator queue"
+  - "Operator can view pending phone verifications in a work queue"
+  - "Operator can record call outcome: confirmed (with details), denied, unreachable, callback scheduled"
+  - "Operator can update verification status and add notes"
+  - "Requestor can view verification status: Pending, In Progress, Confirmed, Denied, Unable to Verify"
+  - "Completed verifications show a detailed report: company name, job title, employment dates, verification method (email/phone), confirmation status, date verified"
+  - "Requestor can view history of all their past verifications"
+  - "Admin can view all verifications across all requestors"
+  - "Admin can manage users (create, deactivate, assign roles)"
+  - "Admin can view basic platform statistics (verifications per day, confirmation rates)"
+  - "Pay-per-verification pricing model"
+  - "Requestor must have sufficient credit/balance to submit a verification"
+  - "Admin can add credits to requestor accounts"
+
+ontology_schema:
+  name: EmploymentVerification
+  description: Employment verification SaaS domain model for South African market
+  fields:
+    - name: User
+      type: entity
+      description: Platform user (Admin, Requestor, or Operator)
+      fields:
+        - name: id
+          type: uuid
+          description: Unique user identifier
+        - name: email
+          type: string
+          description: User email address
+        - name: passwordHash
+          type: string
+          description: Hashed password
+        - name: fullName
+          type: string
+          description: User's full name
+        - name: role
+          type: enum(Admin, Requestor, Operator)
+          description: User role determining access permissions
+        - name: companyName
+          type: string
+          description: Requestor's company name
+        - name: creditBalance
+          type: decimal
+          description: Prepaid verification credits (Requestor only)
+        - name: isActive
+          type: boolean
+          description: Whether the account is active
+        - name: createdAt
+          type: datetime
+          description: Account creation timestamp
+
+    - name: VerifiedCompany
+      type: entity
+      description: A company in the curated HR directory
+      fields:
+        - name: id
+          type: uuid
+          description: Unique company identifier
+        - name: companyName
+          type: string
+          description: Registered company name
+        - name: registrationNumber
+          type: string
+          description: CIPC registration number
+        - name: hrContactName
+          type: string
+          description: Name of HR contact person
+        - name: hrEmail
+          type: string
+          description: HR department email address
+        - name: hrPhone
+          type: string
+          description: HR department phone number
+        - name: forceCall
+          type: boolean
+          description: If true, skip email and always route to phone verification
+        - name: isActive
+          type: boolean
+          description: Whether this company is active in the directory
+        - name: createdAt
+          type: datetime
+          description: Record creation timestamp
+
+    - name: VerificationRequest
+      type: entity
+      description: A single employment verification request
+      fields:
+        - name: id
+          type: uuid
+          description: Unique verification identifier
+        - name: requestorId
+          type: uuid
+          description: FK to User who submitted the request
+        - name: employeeFullName
+          type: string
+          description: Full name of the person being verified
+        - name: employeeIdNumber
+          type: string
+          description: SA ID number or passport number
+        - name: companyName
+          type: string
+          description: Name of the employer to verify against
+        - name: verifiedCompanyId
+          type: uuid?
+          description: FK to VerifiedCompany if matched, null if free-text
+        - name: jobTitle
+          type: string
+          description: Claimed job title
+        - name: employmentStartDate
+          type: date
+          description: Claimed employment start date
+        - name: employmentEndDate
+          type: date?
+          description: Claimed employment end date (null if current)
+        - name: hrContactEmail
+          type: string?
+          description: HR email provided by requestor (if not in directory)
+        - name: hrContactPhone
+          type: string?
+          description: HR phone provided by requestor (if not in directory)
+        - name: consentType
+          type: enum(RequestorWarranted, DirectEmployeeConsent)
+          description: How POPIA consent was obtained
+        - name: status
+          type: enum(Pending, EmailSent, InProgress, Confirmed, Denied, UnableToVerify)
+          description: Current verification status
+        - name: verificationMethod
+          type: enum(Email, Phone)?
+          description: Method used for verification (set on completion)
+        - name: submittedAt
+          type: datetime
+          description: When the request was submitted
+        - name: completedAt
+          type: datetime?
+          description: When verification was completed
+        - name: costAmount
+          type: decimal
+          description: Amount charged for this verification
+
+    - name: VerificationResponse
+      type: entity
+      description: HR's response to a verification request
+      fields:
+        - name: id
+          type: uuid
+          description: Unique response identifier
+        - name: verificationRequestId
+          type: uuid
+          description: FK to the verification request
+        - name: respondedBy
+          type: string
+          description: Name of HR person who responded
+        - name: responseType
+          type: enum(Confirmed, Denied, CorrectedAndConfirmed)
+          description: Type of response
+        - name: confirmedJobTitle
+          type: string?
+          description: Job title as confirmed/corrected by HR
+        - name: confirmedStartDate
+          type: date?
+          description: Start date as confirmed/corrected by HR
+        - name: confirmedEndDate
+          type: date?
+          description: End date as confirmed/corrected by HR
+        - name: isCurrentlyEmployed
+          type: boolean?
+          description: Whether the person is still employed
+        - name: notes
+          type: string?
+          description: Additional notes from HR
+        - name: respondedAt
+          type: datetime
+          description: When the response was submitted
+
+    - name: EmailVerificationToken
+      type: entity
+      description: Unique token for HR email verification links
+      fields:
+        - name: id
+          type: uuid
+          description: Unique token identifier
+        - name: verificationRequestId
+          type: uuid
+          description: FK to the verification request
+        - name: token
+          type: string
+          description: Unique secure token in the verification URL
+        - name: expiresAt
+          type: datetime
+          description: Token expiration timestamp
+        - name: isUsed
+          type: boolean
+          description: Whether the token has been consumed
+
+    - name: OperatorNote
+      type: entity
+      description: Notes added by operators during phone verification
+      fields:
+        - name: id
+          type: uuid
+          description: Unique note identifier
+        - name: verificationRequestId
+          type: uuid
+          description: FK to the verification request
+        - name: operatorId
+          type: uuid
+          description: FK to the operator User
+        - name: callOutcome
+          type: enum(Confirmed, Denied, Unreachable, CallbackScheduled)
+          description: Result of the phone call
+        - name: notes
+          type: string
+          description: Free-text notes about the call
+        - name: createdAt
+          type: datetime
+          description: When the note was created
+
+evaluation_principles:
+  - name: POPIA Compliance
+    weight: 0.25
+    description: "All personal data handling must comply with South Africa's Protection of Personal Information Act. Consent must be explicitly captured and auditable."
+  - name: Data Integrity
+    weight: 0.25
+    description: "Verification results must be accurate and tamper-evident. HR responses must be faithfully recorded without modification."
+  - name: Workflow Reliability
+    weight: 0.20
+    description: "Email sending, token validation, and status transitions must be reliable. No verification request should be lost or stuck."
+  - name: Usability
+    weight: 0.15
+    description: "Requestors should be able to submit verifications quickly. HR confirmation should be completable in under 2 minutes. Operators should have a clear work queue."
+  - name: Security
+    weight: 0.15
+    description: "Authentication, authorization, and verification tokens must be secure. SA ID numbers must be encrypted at rest. Role-based access must be strictly enforced."
+
+exit_conditions:
+  - name: "All ACs testable"
+    criteria: "All acceptance criteria are implemented and manually testable"
+    description: "Every acceptance criterion can be verified through manual testing"
+  - name: "End-to-end email flow"
+    criteria: "A requestor can submit a verification, HR can confirm via email link, and the requestor can view the completed report"
+    description: "Complete email verification workflow from submission to report"
+  - name: "Phone verification flow"
+    criteria: "An operator can process a phone verification from the queue"
+    description: "Operator can pick up and complete phone-based verifications"
+  - name: "Admin management"
+    criteria: "Admin can manage companies, users, and view verifications"
+    description: "Full admin CRUD for companies, users, and verification oversight"
+  - name: "POPIA consent"
+    criteria: "POPIA consent is captured on every verification submission"
+    description: "Consent is recorded and auditable for every request"
+  - name: "Credit system"
+    criteria: "Pay-per-verification credit system deducts on submission"
+    description: "Credits are checked and deducted when a verification is submitted"
+
+metadata:
+  version: "1.0"
+  timestamp: "2026-04-04T00:00:00Z"
+  ambiguity_score: 0.10
+  source: conversation_interview
+  project_name: EmploymentVerify
+  target_market: South Africa
+  tech_stack:
+    language: "C#"
+    framework: ".NET 10"
+    frontend: "Blazor Server"
+    database: "PostgreSQL"
+    architecture: "CQRS"
+    email: "SMTP (self-managed)"
+    hosting: "Self-hosted VPS"
+    auth: "Email/password + optional SSO (Google, Microsoft)"
+  non_goals:
+    - Mobile application
+    - AI-powered phone calls
+    - Public API for third-party integrations
+    - Background screening (criminal, credit, qualifications)
+    - Batch/bulk verification uploads
+    - Formal SLA enforcement

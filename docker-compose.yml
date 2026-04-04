@@ -1,0 +1,63 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: employment_verify
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d employment_verify"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: src/EmploymentVerify.Api/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=employment_verify;Username=postgres;Password=${POSTGRES_PASSWORD:-changeme}"
+      Jwt__SecretKey: ${JWT_SECRET_KEY:-CHANGE_THIS_TO_A_RANDOM_64_CHAR_SECRET_KEY_IN_PRODUCTION}
+      Jwt__Issuer: EmploymentVerify
+      Jwt__Audience: EmploymentVerify
+      Jwt__ExpirationMinutes: 60
+      Smtp__Host: ${SMTP_HOST:-smtp.gmail.com}
+      Smtp__Port: ${SMTP_PORT:-587}
+      Smtp__Username: ${SMTP_USERNAME:-}
+      Smtp__Password: ${SMTP_PASSWORD:-}
+      Smtp__FromAddress: ${SMTP_FROM_ADDRESS:-noreply@yourcompany.co.za}
+      Smtp__FromName: Employment Verify
+      Smtp__EnableSsl: true
+    ports:
+      - "5001:8080"
+
+  web:
+    build:
+      context: .
+      dockerfile: src/EmploymentVerify.Web/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ApiBaseUrl: http://api:8080
+      Authentication__Google__ClientId: ${GOOGLE_CLIENT_ID:-}
+      Authentication__Google__ClientSecret: ${GOOGLE_CLIENT_SECRET:-}
+      Authentication__Microsoft__ClientId: ${MICROSOFT_CLIENT_ID:-}
+      Authentication__Microsoft__ClientSecret: ${MICROSOFT_CLIENT_SECRET:-}
+      Authentication__Microsoft__TenantId: ${MICROSOFT_TENANT_ID:-common}
+    ports:
+      - "5002:8080"
+
+volumes:
+  postgres_data:

@@ -1,0 +1,11 @@
+C:\code\employment\src\EmploymentVerify.Domain\bin\Debug\net10.0\EmploymentVerify.Domain.deps.json
+C:\code\employment\src\EmploymentVerify.Domain\bin\Debug\net10.0\EmploymentVerify.Domain.dll
+C:\code\employment\src\EmploymentVerify.Domain\bin\Debug\net10.0\EmploymentVerify.Domain.pdb
+C:\code\employment\src\EmploymentVerify.Domain\obj\Debug\net10.0\EmploymentVerify.Domain.GeneratedMSBuildEditorConfig.editorconfig
+C:\code\employment\src\EmploymentVerify.Domain\obj\Debug\net10.0\EmploymentVerify.Domain.AssemblyInfoInputs.cache
+C:\code\employment\src\EmploymentVerify.Domain\obj\Debug\net10.0\EmploymentVerify.Domain.AssemblyInfo.cs
+C:\code\employment\src\EmploymentVerify.Domain\obj\Debug\net10.0\EmploymentVerify.Domain.csproj.CoreCompileInputs.cache
+C:\code\employment\src\EmploymentVerify.Domain\obj\Debug\net10.0\EmploymentVerify.Domain.dll
+C:\code\employment\src\EmploymentVerify.Domain\obj\Debug\net10.0\refint\EmploymentVerify.Domain.dll
+C:\code\employment\src\EmploymentVerify.Domain\obj\Debug\net10.0\EmploymentVerify.Domain.pdb
+C:\code\employment\src\EmploymentVerify.Domain\obj\Debug\net10.0\ref\EmploymentVerify.Domain.dll

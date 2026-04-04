@@ -1,0 +1,366 @@
+@page "/verify/confirm"
+@* Public page — no [Authorize] attribute *@
+@rendermode InteractiveServer
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager Navigation
+
+<PageTitle>Employment Verification Confirmation</PageTitle>
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-7">
+
+            @if (_isLoading)
+            {
+                <div class="text-center p-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="text-muted mt-3">Loading verification details...</p>
+                </div>
+            }
+            else if (_tokenInvalid)
+            {
+                <div class="card border-danger shadow-sm">
+                    <div class="card-header bg-danger text-white">
+                        <strong>Invalid or Expired Link</strong>
+                    </div>
+                    <div class="card-body text-center py-5">
+                        <p class="lead text-muted mb-0">
+                            This verification link is invalid, has already been used, or has expired.
+                            Please contact the party that requested this verification for assistance.
+                        </p>
+                    </div>
+                </div>
+            }
+            else if (_submitted)
+            {
+                <div class="card border-success shadow-sm">
+                    <div class="card-header bg-success text-white">
+                        <strong>Response Submitted</strong>
+                    </div>
+                    <div class="card-body text-center py-5">
+                        <h4 class="text-success mb-3">Thank you</h4>
+                        <p class="lead text-muted mb-0">
+                            Your response has been recorded. The requesting party will be notified of the outcome.
+                        </p>
+                    </div>
+                </div>
+            }
+            else if (_verification is not null)
+            {
+                <div class="card shadow-sm">
+                    <div class="card-header bg-primary text-white">
+                        <strong>Employment Verification Request</strong>
+                    </div>
+                    <div class="card-body p-4">
+
+                        <p class="text-muted mb-4">
+                            You have received this request to verify the employment details below.
+                            Please review the information and select an appropriate response.
+                        </p>
+
+                        @if (!string.IsNullOrEmpty(_errorMessage))
+                        {
+                            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                                @_errorMessage
+                                <button type="button" class="btn-close" @onclick="() => _errorMessage = null"></button>
+                            </div>
+                        }
+
+                        @* ── Employment Details ── *@
+                        <fieldset class="mb-4">
+                            <legend class="h5 border-bottom pb-2 mb-3">Employment Details to Verify</legend>
+                            <dl class="row">
+                                <dt class="col-sm-4">Employee Name</dt>
+                                <dd class="col-sm-8"><strong>@_verification.EmployeeFullName</strong></dd>
+                                <dt class="col-sm-4">Company</dt>
+                                <dd class="col-sm-8">@_verification.CompanyName</dd>
+                                <dt class="col-sm-4">Job Title</dt>
+                                <dd class="col-sm-8">@_verification.JobTitle</dd>
+                                <dt class="col-sm-4">Start Date</dt>
+                                <dd class="col-sm-8">@_verification.EmploymentStartDate.ToString("dd MMM yyyy")</dd>
+                                <dt class="col-sm-4">End Date</dt>
+                                <dd class="col-sm-8">
+                                    @(_verification.EmploymentEndDate.HasValue
+                                        ? _verification.EmploymentEndDate.Value.ToString("dd MMM yyyy")
+                                        : "Currently employed")
+                                </dd>
+                            </dl>
+                        </fieldset>
+
+                        @* ── Respondent ── *@
+                        <div class="mb-4">
+                            <label for="respondedBy" class="form-label">Your Name / Position <span class="text-danger">*</span></label>
+                            <input type="text" id="respondedBy" class="form-control"
+                                   placeholder="e.g. Nomsa Dlamini, HR Manager"
+                                   @bind="_form.RespondedBy" />
+                            <small class="form-text text-muted">Enter your name and role for record-keeping purposes.</small>
+                        </div>
+
+                        @* ── Corrections (shown when ConfirmWithCorrections is selected) ── *@
+                        @if (_form.ResponseType == "ConfirmWithCorrections")
+                        {
+                            <fieldset class="mb-4">
+                                <legend class="h6 border-bottom pb-2 mb-3 text-warning">
+                                    Corrections <span class="text-muted fw-normal fs-6">(leave blank if no change)</span>
+                                </legend>
+                                <div class="mb-3">
+                                    <label for="correctedTitle" class="form-label">Corrected Job Title</label>
+                                    <input type="text" id="correctedTitle" class="form-control"
+                                           placeholder="Corrected job title"
+                                           @bind="_form.ConfirmedJobTitle" />
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-5 mb-3">
+                                        <label for="correctedStart" class="form-label">Corrected Start Date</label>
+                                        <input type="date" id="correctedStart" class="form-control"
+                                               @bind="_form.ConfirmedStartDate" />
+                                    </div>
+                                    <div class="col-md-5 mb-3">
+                                        <label for="correctedEnd" class="form-label">Corrected End Date</label>
+                                        <input type="date" id="correctedEnd" class="form-control"
+                                               @bind="_form.ConfirmedEndDate" />
+                                    </div>
+                                    <div class="col-md-2 mb-3 d-flex align-items-end">
+                                        <div class="form-check mb-2">
+                                            <input type="checkbox" id="stillEmployed" class="form-check-input"
+                                                   @bind="_form.IsCurrentlyEmployed" />
+                                            <label class="form-check-label" for="stillEmployed">
+                                                Still employed
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </fieldset>
+                        }
+
+                        @* ── Notes ── *@
+                        <div class="mb-4">
+                            <label for="hrNotes" class="form-label">Notes <span class="text-muted">(optional)</span></label>
+                            <textarea id="hrNotes" class="form-control" rows="3"
+                                      placeholder="Any additional comments..."
+                                      @bind="_form.Notes"></textarea>
+                        </div>
+
+                        @* ── Action Buttons ── *@
+                        <div class="d-flex flex-wrap gap-2">
+                            <button class="btn btn-success flex-fill"
+                                    @onclick="ConfirmAsStated"
+                                    disabled="@_isSubmitting">
+                                @if (_isSubmitting && _form.ResponseType == "Confirmed")
+                                {
+                                    <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                                }
+                                Confirm as Stated
+                            </button>
+
+                            <button class="btn btn-warning flex-fill text-dark"
+                                    @onclick="ToggleCorrections"
+                                    disabled="@_isSubmitting">
+                                Confirm with Corrections
+                            </button>
+
+                            <button class="btn btn-danger flex-fill"
+                                    @onclick="DenyEmployment"
+                                    disabled="@_isSubmitting">
+                                @if (_isSubmitting && _form.ResponseType == "Denied")
+                                {
+                                    <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                                }
+                                Deny Employment
+                            </button>
+                        </div>
+
+                        @if (_form.ResponseType == "ConfirmWithCorrections")
+                        {
+                            <div class="mt-3">
+                                <button class="btn btn-warning w-100"
+                                        @onclick="() => SubmitAsync()"
+                                        disabled="@_isSubmitting">
+                                    @if (_isSubmitting)
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                                    }
+                                    Submit with Corrections
+                                </button>
+                            </div>
+                        }
+
+                        <p class="text-center text-muted mt-4 mb-0" style="font-size: 0.8rem;">
+                            Your response is being collected in accordance with POPIA. The information will only be
+                            used to verify the employment details of the individual named above.
+                        </p>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "token")]
+    public string? Token { get; set; }
+
+    private HrConfirmationData? _verification;
+    private bool _isLoading = true;
+    private bool _tokenInvalid;
+    private bool _submitted;
+    private bool _isSubmitting;
+    private string? _errorMessage;
+
+    private HrConfirmFormModel _form = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (string.IsNullOrWhiteSpace(Token))
+        {
+            _tokenInvalid = true;
+            _isLoading = false;
+            return;
+        }
+
+        await LoadVerificationAsync();
+    }
+
+    private async Task LoadVerificationAsync()
+    {
+        _isLoading = true;
+        _errorMessage = null;
+
+        try
+        {
+            var client = HttpClientFactory.CreateClient("ApiClient");
+            var response = await client.GetAsync($"/api/verify/confirm?token={Uri.EscapeDataString(Token!)}");
+
+            if (response.IsSuccessStatusCode)
+            {
+                _verification = await response.Content.ReadFromJsonAsync<HrConfirmationData>();
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                _tokenInvalid = true;
+            }
+            else
+            {
+                _errorMessage = "Unable to load verification details. Please try again or contact support.";
+            }
+        }
+        catch (HttpRequestException)
+        {
+            _errorMessage = "Unable to connect to the server. Please try again later.";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void ToggleCorrections()
+    {
+        _form.ResponseType = _form.ResponseType == "ConfirmWithCorrections"
+            ? string.Empty
+            : "ConfirmWithCorrections";
+    }
+
+    private async Task ConfirmAsStated()
+    {
+        _form.ResponseType = "Confirmed";
+        await SubmitAsync();
+    }
+
+    private async Task DenyEmployment()
+    {
+        _form.ResponseType = "Denied";
+        await SubmitAsync();
+    }
+
+    private async Task SelectAndSubmitAsync(string responseType)
+    {
+        _form.ResponseType = responseType;
+        await SubmitAsync();
+    }
+
+    private async Task SubmitAsync()
+    {
+        _errorMessage = null;
+
+        if (string.IsNullOrWhiteSpace(_form.RespondedBy))
+        {
+            _errorMessage = "Please enter your name and position before submitting.";
+            return;
+        }
+
+        _isSubmitting = true;
+
+        try
+        {
+            var client = HttpClientFactory.CreateClient("ApiClient");
+
+            DateOnly? confirmedStart = _form.ConfirmedStartDate.HasValue
+                ? DateOnly.FromDateTime(_form.ConfirmedStartDate.Value)
+                : null;
+            DateOnly? confirmedEnd = _form.ConfirmedEndDate.HasValue
+                ? DateOnly.FromDateTime(_form.ConfirmedEndDate.Value)
+                : null;
+
+            var payload = new
+            {
+                token = Token,
+                respondedBy = _form.RespondedBy.Trim(),
+                responseType = _form.ResponseType,
+                confirmedJobTitle = string.IsNullOrWhiteSpace(_form.ConfirmedJobTitle) ? null : _form.ConfirmedJobTitle.Trim(),
+                confirmedStartDate = confirmedStart,
+                confirmedEndDate = confirmedEnd,
+                isCurrentlyEmployed = _form.ResponseType == "ConfirmWithCorrections" ? _form.IsCurrentlyEmployed : (bool?)null,
+                notes = string.IsNullOrWhiteSpace(_form.Notes) ? null : _form.Notes.Trim()
+            };
+
+            var response = await client.PostAsJsonAsync("/api/verify/confirm", payload);
+
+            if (response.IsSuccessStatusCode)
+            {
+                _submitted = true;
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+            {
+                _errorMessage = "The verification link is invalid, has already been used, or has expired.";
+            }
+            else
+            {
+                _errorMessage = $"An unexpected error occurred. Server returned {(int)response.StatusCode}.";
+            }
+        }
+        catch (HttpRequestException)
+        {
+            _errorMessage = "Unable to connect to the server. Please try again later.";
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+
+    // ── Local DTOs ──
+
+    private sealed class HrConfirmationData
+    {
+        public Guid VerificationRequestId { get; set; }
+        public string EmployeeFullName { get; set; } = string.Empty;
+        public string CompanyName { get; set; } = string.Empty;
+        public string JobTitle { get; set; } = string.Empty;
+        public DateOnly EmploymentStartDate { get; set; }
+        public DateOnly? EmploymentEndDate { get; set; }
+    }
+
+    private sealed class HrConfirmFormModel
+    {
+        public string RespondedBy { get; set; } = string.Empty;
+        public string ResponseType { get; set; } = string.Empty;
+        public string? ConfirmedJobTitle { get; set; }
+        public DateTime? ConfirmedStartDate { get; set; }
+        public DateTime? ConfirmedEndDate { get; set; }
+        public bool IsCurrentlyEmployed { get; set; }
+        public string? Notes { get; set; }
+    }
+}

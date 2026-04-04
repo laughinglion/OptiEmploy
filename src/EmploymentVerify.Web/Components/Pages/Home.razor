@@ -1,0 +1,90 @@
+@page "/"
+@attribute [Authorize(Policy = AuthorizationPolicies.RequireAnyRole)]
+
+<PageTitle>Dashboard - Employment Verify</PageTitle>
+
+<h1>Dashboard</h1>
+
+<AuthorizeView>
+    <Authorized>
+        <p class="lead">Welcome back, @context.User.FindFirst(ClaimTypes.Name)?.Value.</p>
+
+        <RoleGuard Roles="@AppRoles.Admin">
+            <div class="row mt-4">
+                <div class="col-md-4 mb-3">
+                    <div class="card border-primary">
+                        <div class="card-body">
+                            <h5 class="card-title text-primary">User Management</h5>
+                            <p class="card-text">Manage user accounts, assign roles, and review access.</p>
+                            <a href="/admin/users" class="btn btn-primary">Manage Users</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <div class="card border-info">
+                        <div class="card-body">
+                            <h5 class="card-title text-info">Work Queue</h5>
+                            <p class="card-text">View pending verification requests requiring operator action.</p>
+                            <a href="/operations/queue" class="btn btn-info">View Queue</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <div class="card border-success">
+                        <div class="card-body">
+                            <h5 class="card-title text-success">Audit Log</h5>
+                            <p class="card-text">Review system activity and data access audit trail.</p>
+                            <a href="/admin/audit-log" class="btn btn-success">View Log</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </RoleGuard>
+
+        <RoleGuard Roles="@AppRoles.Requestor">
+            <div class="row mt-4">
+                <div class="col-md-6 mb-3">
+                    <div class="card border-primary">
+                        <div class="card-body">
+                            <h5 class="card-title text-primary">Submit Verification</h5>
+                            <p class="card-text">Submit a new employment verification request for an individual.</p>
+                            <a href="/verifications/submit" class="btn btn-primary">New Request</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <div class="card border-secondary">
+                        <div class="card-body">
+                            <h5 class="card-title text-secondary">My Requests</h5>
+                            <p class="card-text">Track the status of your submitted verification requests.</p>
+                            <a href="/verifications/my-requests" class="btn btn-secondary">View Requests</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </RoleGuard>
+
+        <RoleGuard Roles="@AppRoles.Operator">
+            <div class="row mt-4">
+                <div class="col-md-6 mb-3">
+                    <div class="card border-info">
+                        <div class="card-body">
+                            <h5 class="card-title text-info">Work Queue</h5>
+                            <p class="card-text">Pending verification requests that need manual follow-up.</p>
+                            <a href="/operations/queue" class="btn btn-info">View Queue</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <div class="card border-secondary">
+                        <div class="card-body">
+                            <h5 class="card-title text-secondary">All Verifications</h5>
+                            <p class="card-text">View and manage all verification requests in the system.</p>
+                            <a href="/operations/verifications" class="btn btn-secondary">View All</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </RoleGuard>
+    </Authorized>
+</AuthorizeView>

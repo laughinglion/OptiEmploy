@@ -1,0 +1,351 @@
+@page "/admin/users"
+@attribute [Authorize(Policy = AuthorizationPolicies.RequireAdmin)]
+@rendermode InteractiveServer
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>User Management - Employment Verify</PageTitle>
+
+<div class="container-fluid mt-4">
+    <h2 class="mb-1">User Management</h2>
+    <p class="text-muted mb-4">Manage user accounts, assign roles, and control access to the platform.</p>
+
+    @if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            @_errorMessage
+            <button type="button" class="btn-close" @onclick="() => _errorMessage = null"></button>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(_successMessage))
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            @_successMessage
+            <button type="button" class="btn-close" @onclick="() => _successMessage = null"></button>
+        </div>
+    }
+
+    <div class="row g-4">
+
+        @* ── Assign Role Card ── *@
+        <div class="col-lg-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-primary text-white">
+                    <strong>Assign User Role</strong>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small mb-3">
+                        Enter the user ID and select a role to assign. You can find user IDs from the
+                        registration confirmation or audit log.
+                    </p>
+
+                    @if (_roleFormErrors.Count > 0)
+                    {
+                        <div class="alert alert-danger py-2">
+                            <ul class="mb-0">
+                                @foreach (var err in _roleFormErrors)
+                                {
+                                    <li>@err</li>
+                                }
+                            </ul>
+                        </div>
+                    }
+
+                    <div class="mb-3">
+                        <label for="roleUserId" class="form-label">User ID <span class="text-danger">*</span></label>
+                        <input type="text" id="roleUserId" class="form-control font-monospace"
+                               placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                               @bind="_roleForm.UserId" />
+                        <small class="form-text text-muted">The GUID of the user to update.</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="roleSelect" class="form-label">Role <span class="text-danger">*</span></label>
+                        <select id="roleSelect" class="form-select" @bind="_roleForm.Role">
+                            <option value="">— Select a role —</option>
+                            <option value="Admin">Admin</option>
+                            <option value="Requestor">Requestor</option>
+                            <option value="Operator">Operator</option>
+                        </select>
+                    </div>
+
+                    <button class="btn btn-primary" @onclick="AssignRoleAsync" disabled="@_isAssigningRole">
+                        @if (_isAssigningRole)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                        }
+                        Assign Role
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        @* ── Register New User Card ── *@
+        <div class="col-lg-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-secondary text-white">
+                    <strong>Create New User</strong>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small mb-3">
+                        Create a new user account. The user will receive an email verification link.
+                    </p>
+
+                    @if (_registerFormErrors.Count > 0)
+                    {
+                        <div class="alert alert-danger py-2">
+                            <ul class="mb-0">
+                                @foreach (var err in _registerFormErrors)
+                                {
+                                    <li>@err</li>
+                                }
+                            </ul>
+                        </div>
+                    }
+
+                    <div class="mb-3">
+                        <label for="regEmail" class="form-label">Email Address <span class="text-danger">*</span></label>
+                        <input type="email" id="regEmail" class="form-control"
+                               placeholder="user@example.com"
+                               @bind="_registerForm.Email" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="regFullName" class="form-label">Full Name <span class="text-danger">*</span></label>
+                        <input type="text" id="regFullName" class="form-control"
+                               placeholder="Full name"
+                               @bind="_registerForm.FullName" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="regPassword" class="form-label">Password <span class="text-danger">*</span></label>
+                        <input type="password" id="regPassword" class="form-control"
+                               placeholder="Minimum 8 characters"
+                               @bind="_registerForm.Password" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="regRole" class="form-label">Role</label>
+                        <select id="regRole" class="form-select" @bind="_registerForm.Role">
+                            <option value="">— No role (assign later) —</option>
+                            <option value="Admin">Admin</option>
+                            <option value="Requestor">Requestor</option>
+                            <option value="Operator">Operator</option>
+                        </select>
+                    </div>
+
+                    <button class="btn btn-secondary" @onclick="RegisterUserAsync" disabled="@_isRegistering">
+                        @if (_isRegistering)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                        }
+                        Create User
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        @* ── User Listing Placeholder ── *@
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <strong>Registered Users</strong>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info mb-0">
+                        <strong>User listing API endpoint is not yet available.</strong>
+                        A <code>GET /api/admin/users</code> endpoint will be added in a future release to enable
+                        browsing and searching registered users here. In the meantime, use the role assignment
+                        form above (with the user's ID from the audit log or registration confirmation email).
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string? _errorMessage;
+    private string? _successMessage;
+
+    // Role assignment form
+    private RoleFormModel _roleForm = new();
+    private List<string> _roleFormErrors = new();
+    private bool _isAssigningRole;
+
+    // Registration form
+    private RegisterFormModel _registerForm = new();
+    private List<string> _registerFormErrors = new();
+    private bool _isRegistering;
+
+    private async Task AssignRoleAsync()
+    {
+        _roleFormErrors.Clear();
+        _errorMessage = null;
+        _successMessage = null;
+
+        if (string.IsNullOrWhiteSpace(_roleForm.UserId))
+            _roleFormErrors.Add("User ID is required.");
+        else if (!Guid.TryParse(_roleForm.UserId.Trim(), out _))
+            _roleFormErrors.Add("User ID must be a valid GUID.");
+
+        if (string.IsNullOrWhiteSpace(_roleForm.Role))
+            _roleFormErrors.Add("Role is required.");
+
+        if (_roleFormErrors.Count > 0) return;
+
+        _isAssigningRole = true;
+
+        try
+        {
+            var userId = Guid.Parse(_roleForm.UserId.Trim());
+            var client = HttpClientFactory.CreateClient("ApiClient");
+            var payload = new { role = _roleForm.Role };
+            var response = await client.PutAsJsonAsync($"/api/admin/users/{userId}/role", payload);
+
+            if (response.IsSuccessStatusCode)
+            {
+                _successMessage = $"Role '{_roleForm.Role}' assigned successfully to user {userId}.";
+                _roleForm = new();
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                _roleFormErrors.Add("User not found. Please check the user ID.");
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.UnprocessableEntity ||
+                     response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+            {
+                try
+                {
+                    var problem = await response.Content.ReadFromJsonAsync<ValidationProblemResponse>();
+                    if (problem?.Errors is not null)
+                    {
+                        foreach (var kvp in problem.Errors)
+                            foreach (var msg in kvp.Value)
+                                _roleFormErrors.Add(msg);
+                    }
+                    else
+                    {
+                        _roleFormErrors.Add("Validation failed. Please check your input.");
+                    }
+                }
+                catch
+                {
+                    _roleFormErrors.Add("Validation failed. Please check your input.");
+                }
+            }
+            else
+            {
+                _roleFormErrors.Add($"An unexpected error occurred. Server returned {(int)response.StatusCode}.");
+            }
+        }
+        catch (HttpRequestException)
+        {
+            _roleFormErrors.Add("Unable to connect to the server. Please try again.");
+        }
+        finally
+        {
+            _isAssigningRole = false;
+        }
+    }
+
+    private async Task RegisterUserAsync()
+    {
+        _registerFormErrors.Clear();
+        _errorMessage = null;
+        _successMessage = null;
+
+        if (string.IsNullOrWhiteSpace(_registerForm.Email))
+            _registerFormErrors.Add("Email address is required.");
+        if (string.IsNullOrWhiteSpace(_registerForm.FullName))
+            _registerFormErrors.Add("Full name is required.");
+        if (string.IsNullOrWhiteSpace(_registerForm.Password))
+            _registerFormErrors.Add("Password is required.");
+        else if (_registerForm.Password.Length < 8)
+            _registerFormErrors.Add("Password must be at least 8 characters.");
+
+        if (_registerFormErrors.Count > 0) return;
+
+        _isRegistering = true;
+
+        try
+        {
+            var client = HttpClientFactory.CreateClient("ApiClient");
+            var payload = new
+            {
+                email = _registerForm.Email.Trim(),
+                password = _registerForm.Password,
+                fullName = _registerForm.FullName.Trim(),
+                companyName = (string?)null,
+                role = string.IsNullOrWhiteSpace(_registerForm.Role) ? (string?)null : _registerForm.Role
+            };
+
+            var response = await client.PostAsJsonAsync("/api/auth/register", payload);
+
+            if (response.IsSuccessStatusCode || response.StatusCode == System.Net.HttpStatusCode.Created)
+            {
+                _successMessage = $"User '{_registerForm.Email}' created successfully. A verification email has been sent.";
+                _registerForm = new();
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+            {
+                _registerFormErrors.Add("A user with this email address already exists.");
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.UnprocessableEntity ||
+                     response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+            {
+                try
+                {
+                    var problem = await response.Content.ReadFromJsonAsync<ValidationProblemResponse>();
+                    if (problem?.Errors is not null)
+                    {
+                        foreach (var kvp in problem.Errors)
+                            foreach (var msg in kvp.Value)
+                                _registerFormErrors.Add(msg);
+                    }
+                    else
+                    {
+                        _registerFormErrors.Add("Validation failed. Please check your input.");
+                    }
+                }
+                catch
+                {
+                    _registerFormErrors.Add("Validation failed. Please check your input.");
+                }
+            }
+            else
+            {
+                _registerFormErrors.Add($"An unexpected error occurred. Server returned {(int)response.StatusCode}.");
+            }
+        }
+        catch (HttpRequestException)
+        {
+            _registerFormErrors.Add("Unable to connect to the server. Please try again.");
+        }
+        finally
+        {
+            _isRegistering = false;
+        }
+    }
+
+    // ── Local Models ──
+
+    private sealed class RoleFormModel
+    {
+        public string UserId { get; set; } = string.Empty;
+        public string Role { get; set; } = string.Empty;
+    }
+
+    private sealed class RegisterFormModel
+    {
+        public string Email { get; set; } = string.Empty;
+        public string FullName { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+        public string Role { get; set; } = string.Empty;
+    }
+
+    private record ValidationProblemResponse
+    {
+        public Dictionary<string, string[]>? Errors { get; init; }
+    }
+}

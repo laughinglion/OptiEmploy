@@ -1,0 +1,81 @@
+@page "/admin/audit-log"
+@attribute [Authorize(Policy = AuthorizationPolicies.RequireAdmin)]
+@rendermode InteractiveServer
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>Audit Log - Employment Verify</PageTitle>
+
+<div class="container-fluid mt-4">
+    <h2 class="mb-1">Audit Log</h2>
+    <p class="text-muted mb-4">Review all system activity for POPIA compliance and security monitoring.</p>
+
+    <div class="card shadow-sm">
+        <div class="card-header bg-light">
+            <strong>Activity Log</strong>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-info mb-3">
+                <strong>Audit log API endpoint is not yet available.</strong>
+                A dedicated <code>GET /api/admin/audit-log</code> endpoint will be implemented in a future release.
+                All data access and modification events are currently logged server-side via the request logging
+                middleware and can be reviewed in the application logs.
+            </div>
+
+            <h6 class="text-muted mb-3">What is audited</h6>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <div class="card border-0 bg-light">
+                        <div class="card-body py-3">
+                            <h6 class="card-title">Verification Requests</h6>
+                            <ul class="small text-muted mb-0">
+                                <li>Submission of new requests</li>
+                                <li>Status changes</li>
+                                <li>Operator call outcomes</li>
+                                <li>HR email confirmations</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card border-0 bg-light">
+                        <div class="card-body py-3">
+                            <h6 class="card-title">User Management</h6>
+                            <ul class="small text-muted mb-0">
+                                <li>User registrations</li>
+                                <li>Role assignments</li>
+                                <li>Login events</li>
+                                <li>Email confirmations</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card border-0 bg-light">
+                        <div class="card-body py-3">
+                            <h6 class="card-title">Data Access (POPIA)</h6>
+                            <ul class="small text-muted mb-0">
+                                <li>SA ID number lookups</li>
+                                <li>Personal data queries</li>
+                                <li>Company data changes</li>
+                                <li>Admin operations</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <h6 class="text-muted mb-2">Recent Verification Activity</h6>
+                <p class="text-muted small">
+                    To review recent verification activity, visit the
+                    <a href="/operations/verifications">All Verifications</a> page which provides
+                    a full list of all requests with timestamps.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    // Audit log API not yet available — page shows informational content
+}

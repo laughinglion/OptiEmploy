@@ -1,0 +1,77 @@
+@using Microsoft.AspNetCore.Authorization
+@using System.Security.Claims
+
+@inject AuthenticationStateProvider AuthStateProvider
+
+@if (_loading)
+{
+    @Loading
+}
+else if (_authorized)
+{
+    @ChildContent
+}
+else if (Fallback is not null)
+{
+    @Fallback
+}
+
+@code {
+    /// <summary>
+    /// Comma-separated list of allowed roles (e.g., "Admin,Operator").
+    /// </summary>
+    [Parameter, EditorRequired]
+    public string Roles { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Content rendered when the user has the required role.
+    /// </summary>
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>
+    /// Optional content rendered when the user does NOT have the required role.
+    /// </summary>
+    [Parameter]
+    public RenderFragment? Fallback { get; set; }
+
+    /// <summary>
+    /// Optional content rendered while the auth state is being resolved.
+    /// </summary>
+    [Parameter]
+    public RenderFragment? Loading { get; set; }
+
+    private bool _authorized;
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = state.User;
+
+        if (user.Identity is not { IsAuthenticated: true })
+        {
+            _authorized = false;
+            _loading = false;
+            return;
+        }
+
+        // Support users with multiple role claims (e.g., from external providers or composite assignments)
+        var userRoles = user.FindAll(ClaimTypes.Role)
+            .Select(c => c.Value)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        if (userRoles.Count == 0)
+        {
+            _authorized = false;
+            _loading = false;
+            return;
+        }
+
+        var allowedRoles = Roles
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        _authorized = allowedRoles.Any(role => userRoles.Contains(role));
+        _loading = false;
+    }
+}
