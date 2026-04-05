@@ -2,6 +2,7 @@ using EmploymentVerify.Api.Filters;
 using EmploymentVerify.Application.Auth.Commands;
 using EmploymentVerify.Application.Users.Commands;
 using EmploymentVerify.Application.Users.Queries;
+using LoginCommand = EmploymentVerify.Application.Auth.Commands.LoginCommand;
 using EmploymentVerify.Domain.Constants;
 using EmploymentVerify.Domain.Enums;
 using FluentValidation;
@@ -17,6 +18,50 @@ public static class AuthEndpoints
             .WithTags("Authentication");
 
         // Public endpoints — registration and email confirmation do not require authentication
+        // POST /api/auth/login — email/password authentication
+        group.MapPost("/login", async (
+            LoginRequest request,
+            IMediator mediator,
+            CancellationToken cancellationToken) =>
+        {
+            var command = new LoginCommand(request.Email, request.Password);
+            var result = await mediator.Send(command, cancellationToken);
+
+            if (!result.Success)
+                return Results.Unauthorized();
+
+            return Results.Ok(new LoginResponse(result.Token!, result.UserId!.Value, result.Email!, result.FullName!, result.Role!));
+        })
+        .AllowAnonymous()
+        .WithName("Login")
+        .WithDescription("Authenticate with email and password, returns a JWT access token")
+        .Produces<LoginResponse>(StatusCodes.Status200OK)
+        .Produces(StatusCodes.Status401Unauthorized);
+
+        // POST /api/auth/sso — SSO identity linking (called by the Web app after OAuth)
+        group.MapPost("/sso", async (
+            SsoLoginRequest request,
+            IMediator mediator,
+            CancellationToken cancellationToken) =>
+        {
+            if (string.IsNullOrWhiteSpace(request.Email))
+                return Results.BadRequest(new { error = "Email is required." });
+
+            var command = new SsoLoginCommand(request.Email, request.FullName ?? request.Email, request.Provider ?? "External");
+            var result = await mediator.Send(command, cancellationToken);
+
+            if (!result.Success)
+                return Results.Unauthorized();
+
+            return Results.Ok(new LoginResponse(result.Token!, result.UserId!.Value, result.Email!, result.FullName!, result.Role!));
+        })
+        .AllowAnonymous()
+        .WithName("SsoLogin")
+        .WithDescription("Find or create a user from an external SSO provider, returns a JWT")
+        .Produces<LoginResponse>(StatusCodes.Status200OK)
+        .Produces(StatusCodes.Status400BadRequest)
+        .Produces(StatusCodes.Status401Unauthorized);
+
         group.MapPost("/register", async (
             RegisterUserRequest request,
             IValidator<RegisterUserCommand> validator,
@@ -233,3 +278,9 @@ public record AssignUserRoleResponse(
 public record SetUserActiveRequest(bool IsActive);
 
 public record AddCreditsRequest(decimal Amount, string? Reason);
+
+public record LoginRequest(string Email, string Password);
+
+public record LoginResponse(string Token, Guid UserId, string Email, string FullName, string Role);
+
+public record SsoLoginRequest(string Email, string? FullName, string? Provider);

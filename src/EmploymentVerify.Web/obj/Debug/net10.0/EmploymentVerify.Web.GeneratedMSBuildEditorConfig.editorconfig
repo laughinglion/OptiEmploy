@@ -38,6 +38,10 @@ build_metadata.AdditionalFiles.CssScope =
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xBY2NvdW50XFJlZ2lzdGVyLnJhem9y
 build_metadata.AdditionalFiles.CssScope = 
 
+[C:/code/employment/src/EmploymentVerify.Web/Components/Pages/Admin/AllVerifications.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xBZG1pblxBbGxWZXJpZmljYXRpb25zLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
 [C:/code/employment/src/EmploymentVerify.Web/Components/Pages/Admin/AuditLog.razor]
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xBZG1pblxBdWRpdExvZy5yYXpvcg==
 build_metadata.AdditionalFiles.CssScope = 

@@ -1,4 +1,5 @@
 using System.Text;
+using EmploymentVerify.Application.Common;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
@@ -80,7 +81,16 @@ public static class ApiAuthenticationExtensions
         });
 
         services.AddSingleton<IJwtTokenService, JwtTokenService>();
+        services.AddSingleton<IJwtTokenGenerator, JwtTokenGeneratorAdapter>();
 
         return services;
     }
+}
+
+/// <summary>Adapts JwtTokenService to the Application-layer IJwtTokenGenerator interface.</summary>
+internal sealed class JwtTokenGeneratorAdapter : IJwtTokenGenerator
+{
+    private readonly IJwtTokenService _jwtTokenService;
+    public JwtTokenGeneratorAdapter(IJwtTokenService jwtTokenService) => _jwtTokenService = jwtTokenService;
+    public string GenerateToken(Domain.Entities.User user) => _jwtTokenService.GenerateAccessToken(user);
 }

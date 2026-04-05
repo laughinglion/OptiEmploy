@@ -25,141 +25,183 @@
         </div>
     }
 
-    <div class="row g-4">
+    <div class="row g-4 mb-4">
 
-        @* ── Assign Role Card ── *@
-        <div class="col-lg-6">
-            <div class="card shadow-sm h-100">
-                <div class="card-header bg-primary text-white">
-                    <strong>Assign User Role</strong>
-                </div>
-                <div class="card-body">
-                    <p class="text-muted small mb-3">
-                        Enter the user ID and select a role to assign. You can find user IDs from the
-                        registration confirmation or audit log.
-                    </p>
-
-                    @if (_roleFormErrors.Count > 0)
-                    {
-                        <div class="alert alert-danger py-2">
-                            <ul class="mb-0">
-                                @foreach (var err in _roleFormErrors)
-                                {
-                                    <li>@err</li>
-                                }
-                            </ul>
-                        </div>
-                    }
-
-                    <div class="mb-3">
-                        <label for="roleUserId" class="form-label">User ID <span class="text-danger">*</span></label>
-                        <input type="text" id="roleUserId" class="form-control font-monospace"
-                               placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                               @bind="_roleForm.UserId" />
-                        <small class="form-text text-muted">The GUID of the user to update.</small>
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="roleSelect" class="form-label">Role <span class="text-danger">*</span></label>
-                        <select id="roleSelect" class="form-select" @bind="_roleForm.Role">
-                            <option value="">— Select a role —</option>
-                            <option value="Admin">Admin</option>
-                            <option value="Requestor">Requestor</option>
-                            <option value="Operator">Operator</option>
-                        </select>
-                    </div>
-
-                    <button class="btn btn-primary" @onclick="AssignRoleAsync" disabled="@_isAssigningRole">
-                        @if (_isAssigningRole)
-                        {
-                            <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
-                        }
-                        Assign Role
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        @* ── Register New User Card ── *@
-        <div class="col-lg-6">
+        @* ── Create New User Card ── *@
+        <div class="col-lg-4">
             <div class="card shadow-sm h-100">
                 <div class="card-header bg-secondary text-white">
                     <strong>Create New User</strong>
                 </div>
                 <div class="card-body">
-                    <p class="text-muted small mb-3">
-                        Create a new user account. The user will receive an email verification link.
-                    </p>
-
                     @if (_registerFormErrors.Count > 0)
                     {
                         <div class="alert alert-danger py-2">
-                            <ul class="mb-0">
-                                @foreach (var err in _registerFormErrors)
-                                {
-                                    <li>@err</li>
-                                }
-                            </ul>
+                            <ul class="mb-0">@foreach (var err in _registerFormErrors) { <li>@err</li> }</ul>
                         </div>
                     }
-
-                    <div class="mb-3">
-                        <label for="regEmail" class="form-label">Email Address <span class="text-danger">*</span></label>
-                        <input type="email" id="regEmail" class="form-control"
-                               placeholder="user@example.com"
-                               @bind="_registerForm.Email" />
+                    <div class="mb-2">
+                        <label class="form-label">Email <span class="text-danger">*</span></label>
+                        <input type="email" class="form-control" placeholder="user@example.com" @bind="_registerForm.Email" />
                     </div>
-
-                    <div class="mb-3">
-                        <label for="regFullName" class="form-label">Full Name <span class="text-danger">*</span></label>
-                        <input type="text" id="regFullName" class="form-control"
-                               placeholder="Full name"
-                               @bind="_registerForm.FullName" />
+                    <div class="mb-2">
+                        <label class="form-label">Full Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" @bind="_registerForm.FullName" />
                     </div>
-
-                    <div class="mb-3">
-                        <label for="regPassword" class="form-label">Password <span class="text-danger">*</span></label>
-                        <input type="password" id="regPassword" class="form-control"
-                               placeholder="Minimum 8 characters"
-                               @bind="_registerForm.Password" />
+                    <div class="mb-2">
+                        <label class="form-label">Password <span class="text-danger">*</span></label>
+                        <input type="password" class="form-control" placeholder="Min 8 characters" @bind="_registerForm.Password" />
                     </div>
-
                     <div class="mb-3">
-                        <label for="regRole" class="form-label">Role</label>
-                        <select id="regRole" class="form-select" @bind="_registerForm.Role">
+                        <label class="form-label">Role</label>
+                        <select class="form-select" @bind="_registerForm.Role">
                             <option value="">— No role (assign later) —</option>
                             <option value="Admin">Admin</option>
                             <option value="Requestor">Requestor</option>
                             <option value="Operator">Operator</option>
                         </select>
                     </div>
-
-                    <button class="btn btn-secondary" @onclick="RegisterUserAsync" disabled="@_isRegistering">
-                        @if (_isRegistering)
-                        {
-                            <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
-                        }
+                    <button class="btn btn-secondary w-100" @onclick="RegisterUserAsync" disabled="@_isRegistering">
+                        @if (_isRegistering) { <span class="spinner-border spinner-border-sm me-1"></span> }
                         Create User
                     </button>
                 </div>
             </div>
         </div>
 
-        @* ── User Listing Placeholder ── *@
-        <div class="col-12">
-            <div class="card shadow-sm">
-                <div class="card-header">
-                    <strong>Registered Users</strong>
+        @* ── Assign Role Card ── *@
+        <div class="col-lg-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-primary text-white">
+                    <strong>Assign Role</strong>
                 </div>
                 <div class="card-body">
-                    <div class="alert alert-info mb-0">
-                        <strong>User listing API endpoint is not yet available.</strong>
-                        A <code>GET /api/admin/users</code> endpoint will be added in a future release to enable
-                        browsing and searching registered users here. In the meantime, use the role assignment
-                        form above (with the user's ID from the audit log or registration confirmation email).
+                    @if (_roleFormErrors.Count > 0)
+                    {
+                        <div class="alert alert-danger py-2">
+                            <ul class="mb-0">@foreach (var err in _roleFormErrors) { <li>@err</li> }</ul>
+                        </div>
+                    }
+                    <div class="mb-2">
+                        <label class="form-label">User ID <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control font-monospace" placeholder="xxxxxxxx-xxxx-..." @bind="_roleForm.UserId" />
                     </div>
+                    <div class="mb-3">
+                        <label class="form-label">Role <span class="text-danger">*</span></label>
+                        <select class="form-select" @bind="_roleForm.Role">
+                            <option value="">— Select a role —</option>
+                            <option value="Admin">Admin</option>
+                            <option value="Requestor">Requestor</option>
+                            <option value="Operator">Operator</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-primary w-100" @onclick="AssignRoleAsync" disabled="@_isAssigningRole">
+                        @if (_isAssigningRole) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Assign Role
+                    </button>
                 </div>
             </div>
+        </div>
+
+        @* ── Add Credits Card ── *@
+        <div class="col-lg-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-success text-white">
+                    <strong>Add Credits</strong>
+                </div>
+                <div class="card-body">
+                    @if (_creditsFormErrors.Count > 0)
+                    {
+                        <div class="alert alert-danger py-2">
+                            <ul class="mb-0">@foreach (var err in _creditsFormErrors) { <li>@err</li> }</ul>
+                        </div>
+                    }
+                    <div class="mb-2">
+                        <label class="form-label">User ID <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control font-monospace" placeholder="xxxxxxxx-xxxx-..." @bind="_creditsForm.UserId" />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Amount (credits) <span class="text-danger">*</span></label>
+                        <input type="number" class="form-control" min="1" step="1" placeholder="e.g. 10" @bind="_creditsForm.Amount" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Reason</label>
+                        <input type="text" class="form-control" placeholder="Optional reason" @bind="_creditsForm.Reason" />
+                    </div>
+                    <button class="btn btn-success w-100" @onclick="AddCreditsAsync" disabled="@_isAddingCredits">
+                        @if (_isAddingCredits) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Add Credits
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @* ── User Listing ── *@
+    <div class="card shadow-sm">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <strong>Registered Users</strong>
+            <button class="btn btn-sm btn-outline-secondary" @onclick="LoadUsersAsync" disabled="@_isLoadingUsers">
+                <span class="bi bi-arrow-clockwise me-1"></span> Refresh
+            </button>
+        </div>
+        <div class="card-body p-0">
+            @if (_isLoadingUsers)
+            {
+                <div class="text-center p-4">
+                    <div class="spinner-border text-primary" role="status"></div>
+                </div>
+            }
+            else if (_users is null || _users.Count == 0)
+            {
+                <div class="text-center p-4 text-muted">No users found.</div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Role</th>
+                                <th class="text-end">Credits</th>
+                                <th class="text-center">Status</th>
+                                <th>Joined</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var u in _users)
+                            {
+                                <tr>
+                                    <td><strong>@u.FullName</strong></td>
+                                    <td><small>@u.Email</small></td>
+                                    <td><span class="badge @RoleBadgeClass(u.Role)">@u.Role</span></td>
+                                    <td class="text-end"><strong>@u.CreditBalance.ToString("F2")</strong></td>
+                                    <td class="text-center">
+                                        @if (u.IsActive)
+                                        {
+                                            <span class="badge bg-success">Active</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary">Inactive</span>
+                                        }
+                                    </td>
+                                    <td><small>@u.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</small></td>
+                                    <td class="text-end">
+                                        <button class="btn btn-sm @(u.IsActive ? "btn-outline-warning" : "btn-outline-success")"
+                                                @onclick="() => ToggleActiveAsync(u)">
+                                            @(u.IsActive ? "Deactivate" : "Activate")
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
         </div>
     </div>
 </div>
@@ -168,20 +210,78 @@
     private string? _errorMessage;
     private string? _successMessage;
 
-    // Role assignment form
+    // User listing
+    private List<UserItem>? _users;
+    private bool _isLoadingUsers = true;
+
+    // Role form
     private RoleFormModel _roleForm = new();
     private List<string> _roleFormErrors = new();
     private bool _isAssigningRole;
 
-    // Registration form
+    // Register form
     private RegisterFormModel _registerForm = new();
     private List<string> _registerFormErrors = new();
     private bool _isRegistering;
 
+    // Credits form
+    private CreditsFormModel _creditsForm = new();
+    private List<string> _creditsFormErrors = new();
+    private bool _isAddingCredits;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUsersAsync();
+    }
+
+    private async Task LoadUsersAsync()
+    {
+        _isLoadingUsers = true;
+        StateHasChanged();
+        try
+        {
+            var client = HttpClientFactory.CreateClient("ApiClient");
+            var response = await client.GetAsync("/api/admin/users");
+            if (response.IsSuccessStatusCode)
+                _users = await response.Content.ReadFromJsonAsync<List<UserItem>>() ?? new();
+            else
+                _errorMessage = $"Failed to load users ({(int)response.StatusCode}).";
+        }
+        catch (HttpRequestException)
+        {
+            _errorMessage = "Unable to connect to the server.";
+        }
+        finally
+        {
+            _isLoadingUsers = false;
+        }
+    }
+
+    private async Task ToggleActiveAsync(UserItem user)
+    {
+        try
+        {
+            var client = HttpClientFactory.CreateClient("ApiClient");
+            var response = await client.PatchAsJsonAsync($"/api/admin/users/{user.Id}/active", new { isActive = !user.IsActive });
+            if (response.IsSuccessStatusCode)
+            {
+                _successMessage = $"User '{user.Email}' {(!user.IsActive ? "activated" : "deactivated")} successfully.";
+                await LoadUsersAsync();
+            }
+            else
+            {
+                _errorMessage = $"Failed to update user status ({(int)response.StatusCode}).";
+            }
+        }
+        catch (HttpRequestException)
+        {
+            _errorMessage = "Unable to connect to the server.";
+        }
+    }
+
     private async Task AssignRoleAsync()
     {
         _roleFormErrors.Clear();
-        _errorMessage = null;
         _successMessage = null;
 
         if (string.IsNullOrWhiteSpace(_roleForm.UserId))
@@ -195,53 +295,26 @@
         if (_roleFormErrors.Count > 0) return;
 
         _isAssigningRole = true;
-
         try
         {
             var userId = Guid.Parse(_roleForm.UserId.Trim());
             var client = HttpClientFactory.CreateClient("ApiClient");
-            var payload = new { role = _roleForm.Role };
-            var response = await client.PutAsJsonAsync($"/api/admin/users/{userId}/role", payload);
+            var response = await client.PutAsJsonAsync($"/api/admin/users/{userId}/role", new { role = _roleForm.Role });
 
             if (response.IsSuccessStatusCode)
             {
-                _successMessage = $"Role '{_roleForm.Role}' assigned successfully to user {userId}.";
+                _successMessage = $"Role '{_roleForm.Role}' assigned to user {userId}.";
                 _roleForm = new();
+                await LoadUsersAsync();
             }
             else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
-            {
-                _roleFormErrors.Add("User not found. Please check the user ID.");
-            }
-            else if (response.StatusCode == System.Net.HttpStatusCode.UnprocessableEntity ||
-                     response.StatusCode == System.Net.HttpStatusCode.BadRequest)
-            {
-                try
-                {
-                    var problem = await response.Content.ReadFromJsonAsync<ValidationProblemResponse>();
-                    if (problem?.Errors is not null)
-                    {
-                        foreach (var kvp in problem.Errors)
-                            foreach (var msg in kvp.Value)
-                                _roleFormErrors.Add(msg);
-                    }
-                    else
-                    {
-                        _roleFormErrors.Add("Validation failed. Please check your input.");
-                    }
-                }
-                catch
-                {
-                    _roleFormErrors.Add("Validation failed. Please check your input.");
-                }
-            }
+                _roleFormErrors.Add("User not found.");
             else
-            {
-                _roleFormErrors.Add($"An unexpected error occurred. Server returned {(int)response.StatusCode}.");
-            }
+                _roleFormErrors.Add($"Server error ({(int)response.StatusCode}).");
         }
         catch (HttpRequestException)
         {
-            _roleFormErrors.Add("Unable to connect to the server. Please try again.");
+            _roleFormErrors.Add("Unable to connect to the server.");
         }
         finally
         {
@@ -252,22 +325,16 @@
     private async Task RegisterUserAsync()
     {
         _registerFormErrors.Clear();
-        _errorMessage = null;
         _successMessage = null;
 
-        if (string.IsNullOrWhiteSpace(_registerForm.Email))
-            _registerFormErrors.Add("Email address is required.");
-        if (string.IsNullOrWhiteSpace(_registerForm.FullName))
-            _registerFormErrors.Add("Full name is required.");
-        if (string.IsNullOrWhiteSpace(_registerForm.Password))
-            _registerFormErrors.Add("Password is required.");
-        else if (_registerForm.Password.Length < 8)
-            _registerFormErrors.Add("Password must be at least 8 characters.");
+        if (string.IsNullOrWhiteSpace(_registerForm.Email)) _registerFormErrors.Add("Email is required.");
+        if (string.IsNullOrWhiteSpace(_registerForm.FullName)) _registerFormErrors.Add("Full name is required.");
+        if (string.IsNullOrWhiteSpace(_registerForm.Password)) _registerFormErrors.Add("Password is required.");
+        else if (_registerForm.Password.Length < 8) _registerFormErrors.Add("Password must be at least 8 characters.");
 
         if (_registerFormErrors.Count > 0) return;
 
         _isRegistering = true;
-
         try
         {
             var client = HttpClientFactory.CreateClient("ApiClient");
@@ -284,43 +351,18 @@
 
             if (response.IsSuccessStatusCode || response.StatusCode == System.Net.HttpStatusCode.Created)
             {
-                _successMessage = $"User '{_registerForm.Email}' created successfully. A verification email has been sent.";
+                _successMessage = $"User '{_registerForm.Email}' created. Verification email sent.";
                 _registerForm = new();
+                await LoadUsersAsync();
             }
             else if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
-            {
-                _registerFormErrors.Add("A user with this email address already exists.");
-            }
-            else if (response.StatusCode == System.Net.HttpStatusCode.UnprocessableEntity ||
-                     response.StatusCode == System.Net.HttpStatusCode.BadRequest)
-            {
-                try
-                {
-                    var problem = await response.Content.ReadFromJsonAsync<ValidationProblemResponse>();
-                    if (problem?.Errors is not null)
-                    {
-                        foreach (var kvp in problem.Errors)
-                            foreach (var msg in kvp.Value)
-                                _registerFormErrors.Add(msg);
-                    }
-                    else
-                    {
-                        _registerFormErrors.Add("Validation failed. Please check your input.");
-                    }
-                }
-                catch
-                {
-                    _registerFormErrors.Add("Validation failed. Please check your input.");
-                }
-            }
+                _registerFormErrors.Add("A user with this email already exists.");
             else
-            {
-                _registerFormErrors.Add($"An unexpected error occurred. Server returned {(int)response.StatusCode}.");
-            }
+                _registerFormErrors.Add($"Server error ({(int)response.StatusCode}).");
         }
         catch (HttpRequestException)
         {
-            _registerFormErrors.Add("Unable to connect to the server. Please try again.");
+            _registerFormErrors.Add("Unable to connect to the server.");
         }
         finally
         {
@@ -328,7 +370,77 @@
         }
     }
 
-    // ── Local Models ──
+    private async Task AddCreditsAsync()
+    {
+        _creditsFormErrors.Clear();
+        _successMessage = null;
+
+        if (string.IsNullOrWhiteSpace(_creditsForm.UserId))
+            _creditsFormErrors.Add("User ID is required.");
+        else if (!Guid.TryParse(_creditsForm.UserId.Trim(), out _))
+            _creditsFormErrors.Add("User ID must be a valid GUID.");
+
+        if (_creditsForm.Amount <= 0)
+            _creditsFormErrors.Add("Amount must be greater than zero.");
+
+        if (_creditsFormErrors.Count > 0) return;
+
+        _isAddingCredits = true;
+        try
+        {
+            var userId = Guid.Parse(_creditsForm.UserId.Trim());
+            var client = HttpClientFactory.CreateClient("ApiClient");
+            var response = await client.PostAsJsonAsync($"/api/admin/users/{userId}/credits",
+                new { amount = _creditsForm.Amount, reason = _creditsForm.Reason });
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<CreditResult>();
+                _successMessage = $"Added {_creditsForm.Amount} credits. New balance: {result?.NewBalance:F2}";
+                _creditsForm = new();
+                await LoadUsersAsync();
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                _creditsFormErrors.Add("User not found.");
+            else
+                _creditsFormErrors.Add($"Server error ({(int)response.StatusCode}).");
+        }
+        catch (HttpRequestException)
+        {
+            _creditsFormErrors.Add("Unable to connect to the server.");
+        }
+        finally
+        {
+            _isAddingCredits = false;
+        }
+    }
+
+    private static string RoleBadgeClass(string role) => role switch
+    {
+        "Admin" => "bg-danger",
+        "Operator" => "bg-warning text-dark",
+        _ => "bg-primary"
+    };
+
+    // ── Models ──
+
+    private sealed class UserItem
+    {
+        public Guid Id { get; set; }
+        public string Email { get; set; } = string.Empty;
+        public string FullName { get; set; } = string.Empty;
+        public string Role { get; set; } = string.Empty;
+        public string? CompanyName { get; set; }
+        public decimal CreditBalance { get; set; }
+        public bool IsActive { get; set; }
+        public DateTime CreatedAt { get; set; }
+    }
+
+    private sealed class CreditResult
+    {
+        public Guid UserId { get; set; }
+        public decimal NewBalance { get; set; }
+    }
 
     private sealed class RoleFormModel
     {
@@ -344,8 +456,10 @@
         public string Role { get; set; } = string.Empty;
     }
 
-    private record ValidationProblemResponse
+    private sealed class CreditsFormModel
     {
-        public Dictionary<string, string[]>? Errors { get; init; }
+        public string UserId { get; set; } = string.Empty;
+        public decimal Amount { get; set; }
+        public string? Reason { get; set; }
     }
 }

@@ -74,6 +74,8 @@
 
         _errorMessage = Error switch
         {
+            "invalid-credentials" => "Invalid email or password. Please try again.",
+            "server-error" => "A server error occurred. Please try again.",
             "google-auth-failed" => "Google sign-in failed. Please try again or use another method.",
             "google-callback-failed" => "Unable to complete Google sign-in. Please try again.",
             "microsoft-auth-failed" => "Microsoft sign-in failed. Please try again or use another method.",

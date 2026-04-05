@@ -141,3 +141,4 @@ C:\code\employment\tests\EmploymentVerify.Tests\bin\Debug\net10.0\Microsoft.AspN
 C:\code\employment\tests\EmploymentVerify.Tests\bin\Debug\net10.0\Microsoft.OpenApi.dll
 C:\code\employment\tests\EmploymentVerify.Tests\bin\Debug\net10.0\EmploymentVerify.Api.dll
 C:\code\employment\tests\EmploymentVerify.Tests\bin\Debug\net10.0\EmploymentVerify.Api.pdb
+C:\code\employment\tests\EmploymentVerify.Tests\obj\Debug\net10.0\EmploymentVerify.Tests.sourcelink.json

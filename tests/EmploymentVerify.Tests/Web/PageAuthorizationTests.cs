@@ -57,7 +57,7 @@ public class PageAuthorizationTests
 
     [Theory]
     [InlineData(typeof(WorkQueue))]
-    [InlineData(typeof(AllVerifications))]
+    [InlineData(typeof(EmploymentVerify.Web.Components.Pages.Operations.AllVerifications))]
     public void OperationPages_RequireAdminOrOperatorPolicy(Type pageType)
     {
         var policy = GetAuthPolicy(pageType);

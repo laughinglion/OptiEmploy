@@ -1,0 +1,173 @@
+@page "/admin/verifications"
+@attribute [Authorize(Policy = AuthorizationPolicies.RequireAdmin)]
+@rendermode InteractiveServer
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>All Verifications - Employment Verify</PageTitle>
+
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h2 class="mb-1">All Verifications</h2>
+            <p class="text-muted mb-0">View all verification requests across all requestors.</p>
+        </div>
+        <button class="btn btn-outline-secondary" @onclick="LoadAsync" disabled="@_isLoading">
+            <span class="bi bi-arrow-clockwise me-1"></span> Refresh
+        </button>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <div class="alert alert-danger alert-dismissible fade show">
+            @_errorMessage
+            <button type="button" class="btn-close" @onclick="() => _errorMessage = null"></button>
+        </div>
+    }
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label">Filter by Status</label>
+                    <select class="form-select" @bind="_statusFilter">
+                        <option value="">All Statuses</option>
+                        <option value="Pending">Pending</option>
+                        <option value="EmailSent">Email Sent</option>
+                        <option value="InProgress">In Progress</option>
+                        <option value="Confirmed">Confirmed</option>
+                        <option value="Denied">Denied</option>
+                        <option value="UnableToVerify">Unable to Verify</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button class="btn btn-outline-secondary w-100" @onclick="LoadAsync">Apply</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span>Requests</span>
+            @if (_items is not null)
+            {
+                <span class="badge bg-secondary">@_items.Count total</span>
+            }
+        </div>
+        <div class="card-body p-0">
+            @if (_isLoading)
+            {
+                <div class="text-center p-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                </div>
+            }
+            else if (_items is null || _items.Count == 0)
+            {
+                <div class="text-center p-5 text-muted">No verifications found.</div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Employee</th>
+                                <th>Company</th>
+                                <th>Job Title</th>
+                                <th class="text-center">Status</th>
+                                <th>Submitted</th>
+                                <th>Completed</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var v in _items)
+                            {
+                                <tr>
+                                    <td><strong>@v.EmployeeFullName</strong></td>
+                                    <td>@v.CompanyName</td>
+                                    <td>@v.JobTitle</td>
+                                    <td class="text-center">@StatusBadge(v.Status)</td>
+                                    <td><small>@v.SubmittedAt.ToLocalTime().ToString("dd MMM yyyy HH:mm")</small></td>
+                                    <td>
+                                        @if (v.CompletedAt.HasValue)
+                                        {
+                                            <small>@v.CompletedAt.Value.ToLocalTime().ToString("dd MMM yyyy HH:mm")</small>
+                                        }
+                                        else
+                                        {
+                                            <small class="text-muted">—</small>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<VerificationItem>? _items;
+    private bool _isLoading = true;
+    private string? _errorMessage;
+    private string _statusFilter = string.Empty;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _errorMessage = null;
+        StateHasChanged();
+        try
+        {
+            var client = HttpClientFactory.CreateClient("ApiClient");
+            var url = "/api/verifications" +
+                (!string.IsNullOrEmpty(_statusFilter) ? $"?status={Uri.EscapeDataString(_statusFilter)}" : "");
+            var response = await client.GetAsync(url);
+            if (response.IsSuccessStatusCode)
+                _items = await response.Content.ReadFromJsonAsync<List<VerificationItem>>() ?? new();
+            else
+                _errorMessage = $"Failed to load verifications ({(int)response.StatusCode}).";
+        }
+        catch (HttpRequestException)
+        {
+            _errorMessage = "Unable to connect to the server.";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private static RenderFragment StatusBadge(string status) => builder =>
+    {
+        var (css, label) = status switch
+        {
+            "Pending"        => ("bg-warning text-dark", "Pending"),
+            "EmailSent"      => ("bg-primary", "Email Sent"),
+            "InProgress"     => ("bg-info text-dark", "In Progress"),
+            "Confirmed"      => ("bg-success", "Confirmed"),
+            "Denied"         => ("bg-danger", "Denied"),
+            "UnableToVerify" => ("bg-secondary", "Unable to Verify"),
+            _                => ("bg-secondary", status)
+        };
+        builder.OpenElement(0, "span");
+        builder.AddAttribute(1, "class", $"badge {css}");
+        builder.AddContent(2, label);
+        builder.CloseElement();
+    };
+
+    private sealed class VerificationItem
+    {
+        public Guid Id { get; set; }
+        public string EmployeeFullName { get; set; } = string.Empty;
+        public string CompanyName { get; set; } = string.Empty;
+        public string JobTitle { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public DateTime SubmittedAt { get; set; }
+        public DateTime? CompletedAt { get; set; }
+    }
+}
