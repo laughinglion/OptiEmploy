@@ -9,3 +9,4 @@ C:\code\employment\src\EmploymentVerify.Domain\obj\Debug\net10.0\EmploymentVerif
 C:\code\employment\src\EmploymentVerify.Domain\obj\Debug\net10.0\refint\EmploymentVerify.Domain.dll
 C:\code\employment\src\EmploymentVerify.Domain\obj\Debug\net10.0\EmploymentVerify.Domain.pdb
 C:\code\employment\src\EmploymentVerify.Domain\obj\Debug\net10.0\ref\EmploymentVerify.Domain.dll
+C:\code\employment\src\EmploymentVerify.Domain\obj\Debug\net10.0\EmploymentVerify.Domain.sourcelink.json

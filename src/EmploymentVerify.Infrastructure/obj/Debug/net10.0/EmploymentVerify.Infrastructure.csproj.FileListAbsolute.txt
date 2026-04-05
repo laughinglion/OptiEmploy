@@ -17,3 +17,4 @@ C:\code\employment\src\EmploymentVerify.Infrastructure\obj\Debug\net10.0\refint\
 C:\code\employment\src\EmploymentVerify.Infrastructure\obj\Debug\net10.0\EmploymentVerify.Infrastructure.pdb
 C:\code\employment\src\EmploymentVerify.Infrastructure\obj\Debug\net10.0\EmploymentVerify.Infrastructure.genruntimeconfig.cache
 C:\code\employment\src\EmploymentVerify.Infrastructure\obj\Debug\net10.0\ref\EmploymentVerify.Infrastructure.dll
+C:\code\employment\src\EmploymentVerify.Infrastructure\obj\Debug\net10.0\EmploymentVerify.Infrastructure.sourcelink.json

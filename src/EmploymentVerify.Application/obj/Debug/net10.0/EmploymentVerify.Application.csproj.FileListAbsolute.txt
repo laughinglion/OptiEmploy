@@ -13,3 +13,4 @@ C:\code\employment\src\EmploymentVerify.Application\obj\Debug\net10.0\Employment
 C:\code\employment\src\EmploymentVerify.Application\obj\Debug\net10.0\refint\EmploymentVerify.Application.dll
 C:\code\employment\src\EmploymentVerify.Application\obj\Debug\net10.0\EmploymentVerify.Application.pdb
 C:\code\employment\src\EmploymentVerify.Application\obj\Debug\net10.0\ref\EmploymentVerify.Application.dll
+C:\code\employment\src\EmploymentVerify.Application\obj\Debug\net10.0\EmploymentVerify.Application.sourcelink.json

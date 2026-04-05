@@ -81,6 +81,9 @@ public class VerificationRequest
     /// <summary>How the verification was completed — set when Status moves to Confirmed or Denied.</summary>
     public VerificationMethod? VerificationMethod { get; set; }
 
+    /// <summary>Credit amount deducted from the requestor's balance for this verification.</summary>
+    public decimal CostAmount { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
     public DateTime? CompletedAt { get; set; }

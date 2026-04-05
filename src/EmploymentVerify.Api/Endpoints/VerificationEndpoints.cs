@@ -30,6 +30,8 @@ public static class VerificationEndpoints
             if (userIdStr is null || !Guid.TryParse(userIdStr, out var userId))
                 return Results.Unauthorized();
 
+            var baseUrl = $"{context.Request.Scheme}://{context.Request.Host}";
+
             var command = new SubmitVerificationCommand(
                 userId,
                 request.EmployeeFullName,
@@ -47,7 +49,8 @@ public static class VerificationEndpoints
                 request.HrPhone,
                 request.ConsentToPopia,
                 request.ConsentAccuracy,
-                request.ConsentType);
+                request.ConsentType,
+                baseUrl);
 
             var result = await mediator.Send(command, cancellationToken);
             return Results.Created($"/api/verifications/{result.Id}", result);

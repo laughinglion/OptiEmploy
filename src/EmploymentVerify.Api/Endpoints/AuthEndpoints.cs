@@ -1,5 +1,7 @@
 using EmploymentVerify.Api.Filters;
 using EmploymentVerify.Application.Auth.Commands;
+using EmploymentVerify.Application.Users.Commands;
+using EmploymentVerify.Application.Users.Queries;
 using EmploymentVerify.Domain.Constants;
 using EmploymentVerify.Domain.Enums;
 using FluentValidation;
@@ -90,6 +92,70 @@ public static class AuthEndpoints
             .RequireAuthorization(AuthorizationPolicies.RequireAdmin)
             .AddEndpointFilter(new RoleAuthorizationFilter(AppRoles.Admin));
 
+        // GET /api/admin/users — list all users with optional role filter
+        adminGroup.MapGet("/", async (
+            string? role,
+            IMediator mediator,
+            CancellationToken cancellationToken) =>
+        {
+            var query = new ListUsersQuery(role);
+            var result = await mediator.Send(query, cancellationToken);
+            return Results.Ok(result);
+        })
+        .WithName("ListUsers")
+        .WithDescription("List all users, optionally filtered by role (Admin only)")
+        .Produces<List<UserSummaryDto>>(StatusCodes.Status200OK);
+
+        // PATCH /api/admin/users/{userId}/active — activate/deactivate a user
+        adminGroup.MapPatch("/{userId:guid}/active", async (
+            Guid userId,
+            SetUserActiveRequest request,
+            IMediator mediator,
+            CancellationToken cancellationToken) =>
+        {
+            try
+            {
+                var command = new DeactivateUserCommand(userId, request.IsActive);
+                var result = await mediator.Send(command, cancellationToken);
+                return Results.Ok(new { result.UserId, result.Email, result.IsActive });
+            }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("not found"))
+            {
+                return Results.NotFound(new { error = ex.Message });
+            }
+        })
+        .WithName("SetUserActive")
+        .WithDescription("Activate or deactivate a user account (Admin only)")
+        .Produces(StatusCodes.Status200OK)
+        .Produces(StatusCodes.Status404NotFound);
+
+        // POST /api/admin/users/{userId}/credits — add credits to a user account
+        adminGroup.MapPost("/{userId:guid}/credits", async (
+            Guid userId,
+            AddCreditsRequest request,
+            IMediator mediator,
+            CancellationToken cancellationToken) =>
+        {
+            if (request.Amount <= 0)
+                return Results.BadRequest(new { error = "Amount must be greater than zero." });
+
+            try
+            {
+                var command = new UpdateUserCreditCommand(userId, request.Amount, request.Reason ?? "Admin credit top-up");
+                var newBalance = await mediator.Send(command, cancellationToken);
+                return Results.Ok(new { UserId = userId, NewBalance = newBalance });
+            }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("not found"))
+            {
+                return Results.NotFound(new { error = ex.Message });
+            }
+        })
+        .WithName("AddUserCredits")
+        .WithDescription("Add credits to a user's account (Admin only)")
+        .Produces(StatusCodes.Status200OK)
+        .Produces(StatusCodes.Status400BadRequest)
+        .Produces(StatusCodes.Status404NotFound);
+
         adminGroup.MapPut("/{userId:guid}/role", async (
             Guid userId,
             AssignUserRoleRequest request,
@@ -163,3 +229,7 @@ public record AssignUserRoleResponse(
     string Email,
     string PreviousRole,
     string NewRole);
+
+public record SetUserActiveRequest(bool IsActive);
+
+public record AddCreditsRequest(decimal Amount, string? Reason);

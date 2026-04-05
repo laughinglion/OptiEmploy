@@ -23,7 +23,8 @@ public record SubmitVerificationCommand(
     string? HrPhone,
     bool ConsentToPopia,
     bool ConsentAccuracy,
-    string ConsentType
+    string ConsentType,
+    string? BaseUrl = null
 ) : IRequest<SubmitVerificationResult>;
 
 public record SubmitVerificationResult(

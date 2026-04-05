@@ -128,6 +128,7 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
             entity.Property(e => e.ConsentType).HasColumnName("consent_type").HasConversion<string>().HasMaxLength(30).IsRequired();
             entity.Property(e => e.ConsentRecordedAt).HasColumnName("consent_recorded_at").IsRequired();
 
+            entity.Property(e => e.CostAmount).HasColumnName("cost_amount").HasPrecision(18, 2).HasDefaultValue(0m);
             entity.Property(e => e.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(30).HasDefaultValue(Domain.Enums.VerificationStatus.Pending);
             entity.Property(e => e.VerificationMethod).HasColumnName("verification_method").HasConversion<string>().HasMaxLength(20);
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");

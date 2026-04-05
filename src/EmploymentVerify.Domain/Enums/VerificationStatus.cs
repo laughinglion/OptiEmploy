@@ -9,5 +9,5 @@ public enum VerificationStatus
     InProgress,
     Confirmed,
     Denied,
-    Failed
+    UnableToVerify
 }
