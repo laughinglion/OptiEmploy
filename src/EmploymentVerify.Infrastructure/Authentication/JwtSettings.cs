@@ -1,10 +1,12 @@
+using EmploymentVerify.Application.Common;
+
 namespace EmploymentVerify.Infrastructure.Authentication;
 
 /// <summary>
 /// Configuration settings for JWT token generation and validation.
 /// Bound from appsettings.json section "Jwt".
 /// </summary>
-public sealed class JwtSettings
+public sealed class JwtSettings : IRefreshTokenSettings
 {
     public const string SectionName = "Jwt";
 

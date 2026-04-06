@@ -21,6 +21,7 @@ public class UpdateUserCreditCommandHandler : IRequestHandler<UpdateUserCreditCo
         if (user is null)
             throw new InvalidOperationException($"User with ID '{request.UserId}' was not found.");
 
+        var balanceBefore = user.CreditBalance;
         var newBalance = user.CreditBalance + request.Amount;
 
         if (newBalance < 0)
@@ -29,6 +30,18 @@ public class UpdateUserCreditCommandHandler : IRequestHandler<UpdateUserCreditCo
 
         user.CreditBalance = newBalance;
 
+        var transaction = new Domain.Entities.CreditTransaction
+        {
+            Id = Guid.NewGuid(),
+            UserId = request.UserId,
+            Amount = request.Amount,
+            BalanceBefore = balanceBefore,
+            BalanceAfter = newBalance,
+            TransactionType = request.Amount > 0 ? "Credit" : "Debit",
+            Reason = request.Reason,
+            CreatedAt = DateTime.UtcNow
+        };
+        _context.CreditTransactions.Add(transaction);
         await _context.SaveChangesAsync(cancellationToken);
 
         return user.CreditBalance;

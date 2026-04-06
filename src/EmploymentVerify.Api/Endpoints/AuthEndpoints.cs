@@ -2,11 +2,13 @@ using EmploymentVerify.Api.Filters;
 using EmploymentVerify.Application.Auth.Commands;
 using EmploymentVerify.Application.Users.Commands;
 using EmploymentVerify.Application.Users.Queries;
+using CreditTransactionDto = EmploymentVerify.Application.Users.Queries.CreditTransactionDto;
 using LoginCommand = EmploymentVerify.Application.Auth.Commands.LoginCommand;
 using EmploymentVerify.Domain.Constants;
 using EmploymentVerify.Domain.Enums;
 using FluentValidation;
 using MediatR;
+using Microsoft.AspNetCore.Http;
 
 namespace EmploymentVerify.Api.Endpoints;
 
@@ -21,6 +23,7 @@ public static class AuthEndpoints
         // POST /api/auth/login — email/password authentication
         group.MapPost("/login", async (
             LoginRequest request,
+            HttpContext context,
             IMediator mediator,
             CancellationToken cancellationToken) =>
         {
@@ -30,9 +33,19 @@ public static class AuthEndpoints
             if (!result.Success)
                 return Results.Unauthorized();
 
-            return Results.Ok(new LoginResponse(result.Token!, result.UserId!.Value, result.Email!, result.FullName!, result.Role!));
+            var loginResponse = new LoginResponse(result.Token!, result.UserId!.Value, result.Email!, result.FullName!, result.Role!);
+            // Store refresh token in HttpOnly cookie
+            context.Response.Cookies.Append("refresh_token", result.RefreshToken!, new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = true,
+                SameSite = SameSiteMode.Strict,
+                Expires = DateTimeOffset.UtcNow.AddDays(7)
+            });
+            return Results.Ok(loginResponse);
         })
         .AllowAnonymous()
+        .RequireRateLimiting("auth")
         .WithName("Login")
         .WithDescription("Authenticate with email and password, returns a JWT access token")
         .Produces<LoginResponse>(StatusCodes.Status200OK)
@@ -60,6 +73,24 @@ public static class AuthEndpoints
         .WithDescription("Find or create a user from an external SSO provider, returns a JWT")
         .Produces<LoginResponse>(StatusCodes.Status200OK)
         .Produces(StatusCodes.Status400BadRequest)
+        .Produces(StatusCodes.Status401Unauthorized);
+
+        // POST /api/auth/refresh — exchange refresh token for new access token
+        group.MapPost("/refresh", async (
+            RefreshRequest request,
+            IMediator mediator,
+            CancellationToken cancellationToken) =>
+        {
+            var command = new RefreshTokenCommand(request.RefreshToken);
+            var result = await mediator.Send(command, cancellationToken);
+            if (!result.Success)
+                return Results.Unauthorized();
+            return Results.Ok(new LoginResponse(result.Token!, result.UserId!.Value, result.Email!, result.FullName!, result.Role!));
+        })
+        .AllowAnonymous()
+        .WithName("RefreshToken")
+        .WithDescription("Exchange a refresh token for a new access token")
+        .Produces<LoginResponse>(StatusCodes.Status200OK)
         .Produces(StatusCodes.Status401Unauthorized);
 
         group.MapPost("/register", async (
@@ -104,6 +135,7 @@ public static class AuthEndpoints
             }
         })
         .AllowAnonymous()
+        .RequireRateLimiting("auth")
         .WithName("RegisterUser")
         .WithDescription("Register a new user with email and password, optionally specifying a role. A verification email is sent upon registration.")
         .Produces<RegisterUserResponse>(StatusCodes.Status201Created)
@@ -201,6 +233,20 @@ public static class AuthEndpoints
         .Produces(StatusCodes.Status400BadRequest)
         .Produces(StatusCodes.Status404NotFound);
 
+        // GET /api/admin/users/{userId}/transactions — credit transaction history
+        adminGroup.MapGet("/{userId:guid}/transactions", async (
+            Guid userId,
+            IMediator mediator,
+            CancellationToken cancellationToken) =>
+        {
+            var query = new GetUserTransactionsQuery(userId);
+            var result = await mediator.Send(query, cancellationToken);
+            return Results.Ok(result);
+        })
+        .WithName("GetUserTransactions")
+        .WithDescription("Get credit transaction history for a user (Admin only)")
+        .Produces<List<CreditTransactionDto>>(StatusCodes.Status200OK);
+
         adminGroup.MapPut("/{userId:guid}/role", async (
             Guid userId,
             AssignUserRoleRequest request,
@@ -284,3 +330,5 @@ public record LoginRequest(string Email, string Password);
 public record LoginResponse(string Token, Guid UserId, string Email, string FullName, string Role);
 
 public record SsoLoginRequest(string Email, string? FullName, string? Provider);
+
+public record RefreshRequest(string RefreshToken);

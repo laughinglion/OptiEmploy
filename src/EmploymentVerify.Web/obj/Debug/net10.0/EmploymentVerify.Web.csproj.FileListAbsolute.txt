@@ -113,3 +113,13 @@ C:\code\employment\src\EmploymentVerify.Web\obj\Debug\net10.0\compressed\dh8rydr
 C:\code\employment\src\EmploymentVerify.Web\obj\Debug\net10.0\compressed\wn1bhd2uad-{0}-eo8fzh2kw4-eo8fzh2kw4.gz
 C:\code\employment\src\EmploymentVerify.Web\bin\Debug\net10.0\Microsoft.AspNetCore.Authentication.JwtBearer.dll
 C:\code\employment\src\EmploymentVerify.Web\obj\Debug\net10.0\EmploymentVerify.Web.sourcelink.json
+C:\code\employment\src\EmploymentVerify.Web\bin\Debug\net10.0\Microsoft.Extensions.DependencyModel.dll
+C:\code\employment\src\EmploymentVerify.Web\bin\Debug\net10.0\Serilog.dll
+C:\code\employment\src\EmploymentVerify.Web\bin\Debug\net10.0\Serilog.AspNetCore.dll
+C:\code\employment\src\EmploymentVerify.Web\bin\Debug\net10.0\Serilog.Extensions.Hosting.dll
+C:\code\employment\src\EmploymentVerify.Web\bin\Debug\net10.0\Serilog.Extensions.Logging.dll
+C:\code\employment\src\EmploymentVerify.Web\bin\Debug\net10.0\Serilog.Formatting.Compact.dll
+C:\code\employment\src\EmploymentVerify.Web\bin\Debug\net10.0\Serilog.Settings.Configuration.dll
+C:\code\employment\src\EmploymentVerify.Web\bin\Debug\net10.0\Serilog.Sinks.Console.dll
+C:\code\employment\src\EmploymentVerify.Web\bin\Debug\net10.0\Serilog.Sinks.Debug.dll
+C:\code\employment\src\EmploymentVerify.Web\bin\Debug\net10.0\Serilog.Sinks.File.dll

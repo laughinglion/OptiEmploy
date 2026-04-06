@@ -4,6 +4,7 @@ using EmploymentVerify.Domain.Entities;
 using EmploymentVerify.Domain.Enums;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace EmploymentVerify.Application.Verifications.Commands;
 
@@ -11,11 +12,13 @@ public class SubmitVerificationCommandHandler : IRequestHandler<SubmitVerificati
 {
     private readonly IApplicationDbContext _context;
     private readonly IMediator _mediator;
+    private readonly PricingSettings _pricingSettings;
 
-    public SubmitVerificationCommandHandler(IApplicationDbContext context, IMediator mediator)
+    public SubmitVerificationCommandHandler(IApplicationDbContext context, IMediator mediator, IOptions<PricingSettings> pricingOptions)
     {
         _context = context;
         _mediator = mediator;
+        _pricingSettings = pricingOptions.Value;
     }
 
     public async Task<SubmitVerificationResult> Handle(SubmitVerificationCommand request, CancellationToken cancellationToken)
@@ -27,9 +30,9 @@ public class SubmitVerificationCommandHandler : IRequestHandler<SubmitVerificati
         if (requestor is null)
             throw new InvalidOperationException("Requestor not found.");
 
-        if (requestor.CreditBalance < Pricing.VerificationCost)
+        if (requestor.CreditBalance < _pricingSettings.VerificationCostCredits)
             throw new InvalidOperationException(
-                $"Insufficient credit balance. Required: {Pricing.VerificationCost:F2}, available: {requestor.CreditBalance:F2}.");
+                $"Insufficient credit balance. Required: {_pricingSettings.VerificationCostCredits:F2}, available: {requestor.CreditBalance:F2}.");
 
         // Parse enums from string values (already validated by FluentValidation)
         var idType = Enum.Parse<IdentificationType>(request.IdType);
@@ -77,7 +80,7 @@ public class SubmitVerificationCommandHandler : IRequestHandler<SubmitVerificati
             ConsentRecordedAt = DateTime.UtcNow,
 
             // AC 26 — record cost for this verification
-            CostAmount = Pricing.VerificationCost,
+            CostAmount = _pricingSettings.VerificationCostCredits,
 
             Status = VerificationStatus.Pending,
             CreatedAt = DateTime.UtcNow
@@ -86,7 +89,22 @@ public class SubmitVerificationCommandHandler : IRequestHandler<SubmitVerificati
         _context.VerificationRequests.Add(verification);
 
         // AC 27 — deduct credit atomically with the request
-        requestor.CreditBalance -= Pricing.VerificationCost;
+        var balanceBefore = requestor.CreditBalance;
+        requestor.CreditBalance -= _pricingSettings.VerificationCostCredits;
+
+        var creditTx = new Domain.Entities.CreditTransaction
+        {
+            Id = Guid.NewGuid(),
+            UserId = requestor.Id,
+            Amount = -_pricingSettings.VerificationCostCredits,
+            BalanceBefore = balanceBefore,
+            BalanceAfter = requestor.CreditBalance,
+            TransactionType = "Debit",
+            Reason = $"Verification request submitted",
+            RelatedVerificationId = verification.Id,
+            CreatedAt = DateTime.UtcNow
+        };
+        _context.CreditTransactions.Add(creditTx);
 
         await _context.SaveChangesAsync(cancellationToken);
 

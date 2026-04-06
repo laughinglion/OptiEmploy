@@ -1,4 +1,6 @@
 using EmploymentVerify.Application.Common;
+using EmploymentVerify.Domain.Constants;
+using EmploymentVerify.Infrastructure.Authentication;
 using EmploymentVerify.Infrastructure.Email;
 using EmploymentVerify.Infrastructure.Persistence;
 using EmploymentVerify.Infrastructure.Security;
@@ -22,10 +24,26 @@ public static class DependencyInjection
 
         services.AddSingleton<IPasswordHasher, BCryptPasswordHasher>();
         services.AddSingleton<IEmailVerificationTokenGenerator, CryptoTokenGenerator>();
+        services.AddSingleton<IFieldEncryption, AesEncryptionService>();
+
+        // Expose JwtSettings as IRefreshTokenSettings for Application layer handlers
+        services.AddSingleton<IRefreshTokenSettings>(sp =>
+        {
+            var settings = new JwtSettings();
+            configuration.GetSection(JwtSettings.SectionName).Bind(settings);
+            return settings;
+        });
 
         // Email
         services.Configure<SmtpSettings>(configuration.GetSection(SmtpSettings.SectionName));
         services.AddTransient<IEmailSender, SmtpEmailSender>();
+
+        // Pricing
+        services.Configure<PricingSettings>(configuration.GetSection(PricingSettings.SectionName));
+
+        // Background services
+        services.AddHostedService<BackgroundServices.EmailRetryService>();
+        services.AddHostedService<BackgroundServices.TokenExpiryService>();
 
         return services;
     }

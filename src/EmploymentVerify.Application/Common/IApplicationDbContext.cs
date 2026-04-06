@@ -11,5 +11,7 @@ public interface IApplicationDbContext
     DbSet<VerificationResponse> VerificationResponses { get; }
     DbSet<EmailVerificationToken> EmailVerificationTokens { get; }
     DbSet<OperatorNote> OperatorNotes { get; }
+    DbSet<RefreshToken> RefreshTokens { get; }
+    DbSet<CreditTransaction> CreditTransactions { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

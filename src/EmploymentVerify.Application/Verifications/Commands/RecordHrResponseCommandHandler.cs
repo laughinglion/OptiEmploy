@@ -17,16 +17,18 @@ public class RecordHrResponseCommandHandler : IRequestHandler<RecordHrResponseCo
 
     public async Task<bool> Handle(RecordHrResponseCommand request, CancellationToken cancellationToken)
     {
+        // Atomically claim the token — prevents double-submit race condition
+        var claimed = await _context.EmailVerificationTokens
+            .Where(t => t.Token == request.Token && !t.IsUsed && t.ExpiresAt >= DateTime.UtcNow)
+            .ExecuteUpdateAsync(s => s.SetProperty(t => t.IsUsed, true), cancellationToken);
+
+        if (claimed == 0)
+            return false;
+
         var emailToken = await _context.EmailVerificationTokens
             .FirstOrDefaultAsync(t => t.Token == request.Token, cancellationToken);
 
         if (emailToken is null)
-            return false;
-
-        if (emailToken.IsUsed)
-            return false;
-
-        if (emailToken.ExpiresAt < DateTime.UtcNow)
             return false;
 
         var verification = await _context.VerificationRequests
@@ -51,8 +53,6 @@ public class RecordHrResponseCommandHandler : IRequestHandler<RecordHrResponseCo
 
         _context.VerificationResponses.Add(response);
 
-        emailToken.IsUsed = true;
-
         verification.Status = request.ResponseType == ResponseType.Denied
             ? VerificationStatus.Denied
             : VerificationStatus.Confirmed;
@@ -61,7 +61,6 @@ public class RecordHrResponseCommandHandler : IRequestHandler<RecordHrResponseCo
         verification.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync(cancellationToken);
-
         return true;
     }
 }

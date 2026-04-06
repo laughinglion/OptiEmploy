@@ -15,11 +15,13 @@ public class LoginController : ControllerBase
 {
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<LoginController> _logger;
+    private readonly IServerTokenStore _tokenStore;
 
-    public LoginController(IHttpClientFactory httpClientFactory, ILogger<LoginController> logger)
+    public LoginController(IHttpClientFactory httpClientFactory, ILogger<LoginController> logger, IServerTokenStore tokenStore)
     {
         _httpClientFactory = httpClientFactory;
         _logger = logger;
+        _tokenStore = tokenStore;
     }
 
     /// <summary>
@@ -68,14 +70,16 @@ public class LoginController : ControllerBase
 
     internal async Task SignInWithCookieAsync(ApiLoginResponse loginResult)
     {
+        var sessionId = Guid.NewGuid().ToString();
+        _tokenStore.Store(sessionId, loginResult.Token, TimeSpan.FromHours(8));
+
         var claims = new List<Claim>
         {
             new(ClaimTypes.NameIdentifier, loginResult.UserId.ToString()),
             new(ClaimTypes.Email, loginResult.Email),
             new(ClaimTypes.Name, loginResult.FullName),
             new(ClaimTypes.Role, loginResult.Role),
-            // Store JWT so Blazor pages can attach it to API requests
-            new("access_token", loginResult.Token)
+            new("session_id", sessionId)
         };
 
         var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
@@ -87,10 +91,7 @@ public class LoginController : ControllerBase
             ExpiresUtc = DateTimeOffset.UtcNow.AddHours(8)
         };
 
-        await HttpContext.SignInAsync(
-            CookieAuthenticationDefaults.AuthenticationScheme,
-            principal,
-            authProperties);
+        await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal, authProperties);
     }
 }
 

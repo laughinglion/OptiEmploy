@@ -3,6 +3,7 @@ using EmploymentVerify.Domain.Entities;
 using EmploymentVerify.Domain.Enums;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Cryptography;
 
 namespace EmploymentVerify.Application.Auth.Commands;
 
@@ -10,11 +11,16 @@ public class SsoLoginCommandHandler : IRequestHandler<SsoLoginCommand, LoginResu
 {
     private readonly IApplicationDbContext _context;
     private readonly IJwtTokenGenerator _jwtTokenGenerator;
+    private readonly int _refreshTokenDays;
 
-    public SsoLoginCommandHandler(IApplicationDbContext context, IJwtTokenGenerator jwtTokenGenerator)
+    public SsoLoginCommandHandler(
+        IApplicationDbContext context,
+        IJwtTokenGenerator jwtTokenGenerator,
+        IRefreshTokenSettings refreshTokenSettings)
     {
         _context = context;
         _jwtTokenGenerator = jwtTokenGenerator;
+        _refreshTokenDays = refreshTokenSettings.RefreshTokenExpirationDays;
     }
 
     public async Task<LoginResult> Handle(SsoLoginCommand request, CancellationToken cancellationToken)
@@ -46,12 +52,26 @@ public class SsoLoginCommandHandler : IRequestHandler<SsoLoginCommand, LoginResu
         }
         else if (!user.IsActive)
         {
-            return new LoginResult(false, null, null, null, null, null,
+            return new LoginResult(false, null, null, null, null, null, null,
                 "Your account has been deactivated. Please contact support.");
         }
 
-        var token = _jwtTokenGenerator.GenerateToken(user);
+        var accessToken = _jwtTokenGenerator.GenerateToken(user);
+        var refreshTokenValue = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
 
-        return new LoginResult(true, token, user.Id, user.Email, user.FullName, user.Role.ToString(), null);
+        var refreshToken = new RefreshToken
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            Token = refreshTokenValue,
+            ExpiresAt = DateTime.UtcNow.AddDays(_refreshTokenDays),
+            IsRevoked = false,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _context.RefreshTokens.Add(refreshToken);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return new LoginResult(true, accessToken, refreshTokenValue, user.Id, user.Email, user.FullName, user.Role.ToString(), null);
     }
 }

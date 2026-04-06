@@ -189,6 +189,25 @@ public static class VerificationEndpoints
         .Produces(StatusCodes.Status200OK)
         .Produces(StatusCodes.Status404NotFound);
 
+        // POST /api/verifications/{id}/resend-email — operator resends HR verification email
+        requestorGroup.MapPost("/{id:guid}/resend-email", async (
+            Guid id,
+            HttpContext context,
+            IMediator mediator,
+            CancellationToken cancellationToken) =>
+        {
+            var baseUrl = $"{context.Request.Scheme}://{context.Request.Host}";
+            var result = await mediator.Send(new SendVerificationEmailCommand(id, baseUrl), cancellationToken);
+            return result
+                ? Results.Ok(new { message = "Verification email resent successfully." })
+                : Results.BadRequest(new { error = "Could not resend email. Verification may not exist or has no HR email." });
+        })
+        .AddEndpointFilter(new RoleAuthorizationFilter(AppRoles.Admin, AppRoles.Operator))
+        .WithName("ResendVerificationEmail")
+        .WithDescription("Resend the HR verification email for a pending request (Operator/Admin only)")
+        .Produces(StatusCodes.Status200OK)
+        .Produces(StatusCodes.Status400BadRequest);
+
         // ── Public HR confirmation endpoints ────────────────────────────────────
 
         var publicGroup = app.MapGroup("/api/verify")

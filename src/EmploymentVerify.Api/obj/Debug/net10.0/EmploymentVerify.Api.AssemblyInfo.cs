@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("EmploymentVerify.Api")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c3a265b1014b586b8301e69fc13493b3c39ae567")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+825e7ffb329fe5e434b24abee69e99ef3b7eb5ee")]
 [assembly: System.Reflection.AssemblyProductAttribute("EmploymentVerify.Api")]
 [assembly: System.Reflection.AssemblyTitleAttribute("EmploymentVerify.Api")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

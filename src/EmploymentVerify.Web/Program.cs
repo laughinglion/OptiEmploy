@@ -1,14 +1,29 @@
 using EmploymentVerify.Infrastructure.Authorization;
 using EmploymentVerify.Web.Authentication;
 using EmploymentVerify.Web.Components;
+using Serilog;
+using Serilog.Formatting.Compact;
+
+Log.Logger = new LoggerConfiguration()
+    .WriteTo.Console(new CompactJsonFormatter())
+    .CreateBootstrapLogger();
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Host.UseSerilog((context, services, configuration) => configuration
+    .ReadFrom.Configuration(context.Configuration)
+    .ReadFrom.Services(services)
+    .WriteTo.Console(new CompactJsonFormatter()));
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-// Bearer token handler — attaches JWT from cookie claims to every API request
+// Server-side JWT store — keeps JWT out of the cookie
+builder.Services.AddMemoryCache();
+builder.Services.AddSingleton<IServerTokenStore, MemoryServerTokenStore>();
+
+// Bearer token handler — attaches JWT from server-side store to every API request
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddTransient<BearerTokenHandler>();
 

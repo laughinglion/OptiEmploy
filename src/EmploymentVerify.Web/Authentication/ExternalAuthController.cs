@@ -18,11 +18,13 @@ public class ExternalAuthController : ControllerBase
 {
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<ExternalAuthController> _logger;
+    private readonly IServerTokenStore _tokenStore;
 
-    public ExternalAuthController(IHttpClientFactory httpClientFactory, ILogger<ExternalAuthController> logger)
+    public ExternalAuthController(IHttpClientFactory httpClientFactory, ILogger<ExternalAuthController> logger, IServerTokenStore tokenStore)
     {
         _httpClientFactory = httpClientFactory;
         _logger = logger;
+        _tokenStore = tokenStore;
     }
 
     // ─── Google SSO ──────────────────────────────────────────────────
@@ -155,15 +157,14 @@ public class ExternalAuthController : ControllerBase
             if (loginResult is null || string.IsNullOrEmpty(loginResult.Token))
                 return false;
 
-            // Issue the application session cookie with the user's claims + JWT
-            var loginController = new LoginController(_httpClientFactory, _logger as ILogger<LoginController>
-                ?? HttpContext.RequestServices.GetRequiredService<ILogger<LoginController>>());
+            var loginController = new LoginController(_httpClientFactory,
+                HttpContext.RequestServices.GetRequiredService<ILogger<LoginController>>(),
+                _tokenStore);
             loginController.ControllerContext = new Microsoft.AspNetCore.Mvc.ControllerContext
             {
                 HttpContext = HttpContext
             };
             await loginController.SignInWithCookieAsync(loginResult);
-
             return true;
         }
         catch (Exception ex)

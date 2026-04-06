@@ -1,15 +1,19 @@
 using EmploymentVerify.Application.Common;
 using EmploymentVerify.Domain.Entities;
 using EmploymentVerify.Domain.Enums;
+using EmploymentVerify.Infrastructure.Security;
 using Microsoft.EntityFrameworkCore;
 
 namespace EmploymentVerify.Infrastructure.Persistence;
 
 public class ApplicationDbContext : DbContext, IApplicationDbContext
 {
-    public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
+    private readonly IFieldEncryption? _fieldEncryption;
+
+    public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options, IFieldEncryption? fieldEncryption = null)
         : base(options)
     {
+        _fieldEncryption = fieldEncryption;
     }
 
     public DbSet<User> Users => Set<User>();
@@ -18,6 +22,8 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<VerificationResponse> VerificationResponses => Set<VerificationResponse>();
     public DbSet<EmailVerificationToken> EmailVerificationTokens => Set<EmailVerificationToken>();
     public DbSet<OperatorNote> OperatorNotes => Set<OperatorNote>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<CreditTransaction> CreditTransactions => Set<CreditTransaction>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -108,7 +114,19 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
 
             entity.Property(e => e.EmployeeFullName).HasColumnName("employee_full_name").HasMaxLength(200).IsRequired();
             entity.Property(e => e.IdType).HasColumnName("id_type").HasConversion<string>().HasMaxLength(20).IsRequired();
-            entity.Property(e => e.SaIdNumber).HasColumnName("sa_id_number").HasMaxLength(512); // encrypted
+            if (_fieldEncryption is not null)
+            {
+                entity.Property(e => e.SaIdNumber)
+                    .HasColumnName("sa_id_number")
+                    .HasMaxLength(512)
+                    .HasConversion(new EncryptedStringConverter(_fieldEncryption));
+            }
+            else
+            {
+                entity.Property(e => e.SaIdNumber)
+                    .HasColumnName("sa_id_number")
+                    .HasMaxLength(512);
+            }
             entity.Property(e => e.PassportNumber).HasColumnName("passport_number").HasMaxLength(50);
             entity.Property(e => e.PassportCountry).HasColumnName("passport_country").HasMaxLength(100);
 
@@ -282,6 +300,39 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
             entity.Property(e => e.CreatedAt)
                 .HasColumnName("created_at")
                 .HasDefaultValueSql("NOW()");
+        });
+
+        modelBuilder.Entity<RefreshToken>(entity =>
+        {
+            entity.ToTable("refresh_tokens");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.UserId).HasColumnName("user_id").IsRequired();
+            entity.Property(e => e.Token).HasColumnName("token").HasMaxLength(256).IsRequired();
+            entity.Property(e => e.ExpiresAt).HasColumnName("expires_at").IsRequired();
+            entity.Property(e => e.IsRevoked).HasColumnName("is_revoked").HasDefaultValue(false);
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.HasIndex(e => e.Token).IsUnique();
+            entity.HasIndex(e => e.UserId);
+            entity.HasOne(e => e.User).WithMany().HasForeignKey(e => e.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<CreditTransaction>(entity =>
+        {
+            entity.ToTable("credit_transactions");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.UserId).HasColumnName("user_id").IsRequired();
+            entity.Property(e => e.Amount).HasColumnName("amount").HasPrecision(18, 2).IsRequired();
+            entity.Property(e => e.BalanceBefore).HasColumnName("balance_before").HasPrecision(18, 2).IsRequired();
+            entity.Property(e => e.BalanceAfter).HasColumnName("balance_after").HasPrecision(18, 2).IsRequired();
+            entity.Property(e => e.TransactionType).HasColumnName("transaction_type").HasMaxLength(20).IsRequired();
+            entity.Property(e => e.Reason).HasColumnName("reason").HasMaxLength(500).IsRequired();
+            entity.Property(e => e.RelatedVerificationId).HasColumnName("related_verification_id");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.HasIndex(e => e.UserId);
+            entity.HasIndex(e => e.CreatedAt);
+            entity.HasOne(e => e.User).WithMany().HasForeignKey(e => e.UserId).OnDelete(DeleteBehavior.Cascade);
         });
     }
 }
