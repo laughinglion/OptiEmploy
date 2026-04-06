@@ -42,6 +42,16 @@ public class UpdateUserCreditCommandHandler : IRequestHandler<UpdateUserCreditCo
             CreatedAt = DateTime.UtcNow
         };
         _context.CreditTransactions.Add(transaction);
+
+        _context.AuditEvents.Add(new Domain.Entities.AuditEvent
+        {
+            Id = Guid.NewGuid(),
+            EventType = "AdminCreditAdjustment",
+            Description = $"Admin adjusted credits by {request.Amount:F2} for user {user.Email}. Reason: {request.Reason}",
+            TargetUserId = user.Id,
+            OccurredAt = DateTime.UtcNow
+        });
+
         await _context.SaveChangesAsync(cancellationToken);
 
         return user.CreditBalance;

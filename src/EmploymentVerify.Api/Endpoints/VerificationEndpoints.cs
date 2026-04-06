@@ -269,7 +269,8 @@ public static class VerificationEndpoints
 
         var publicGroup = app.MapGroup("/api/verify")
             .WithTags("HR Verification")
-            .AllowAnonymous();
+            .AllowAnonymous()
+            .RequireRateLimiting("auth");
 
         // GET /api/verify/confirm?token=xxx — return HR confirmation page data
         publicGroup.MapGet("/confirm", async (

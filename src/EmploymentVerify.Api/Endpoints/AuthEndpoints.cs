@@ -212,6 +212,22 @@ public static class AuthEndpoints
             .RequireRateLimiting("admin")
             .AddEndpointFilter(new RoleAuthorizationFilter(AppRoles.Admin));
 
+        // GET /api/admin/users/{userId} — get full user detail
+        adminGroup.MapGet("/{userId:guid}", async (
+            Guid userId,
+            IMediator mediator,
+            CancellationToken cancellationToken) =>
+        {
+            var result = await mediator.Send(new Application.Users.Queries.GetUserDetailQuery(userId), cancellationToken);
+            return result is null
+                ? Results.NotFound(new { error = $"User with ID '{userId}' was not found." })
+                : Results.Ok(result);
+        })
+        .WithName("GetUserDetail")
+        .WithDescription("Get detailed profile for a specific user (Admin only)")
+        .Produces<Application.Users.Queries.UserDetailDto>(StatusCodes.Status200OK)
+        .Produces(StatusCodes.Status404NotFound);
+
         // GET /api/admin/users — list all users with optional role filter and pagination
         adminGroup.MapGet("/", async (
             string? role,

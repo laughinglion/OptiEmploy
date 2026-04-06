@@ -22,6 +22,16 @@ public class DeactivateUserCommandHandler : IRequestHandler<DeactivateUserComman
             throw new InvalidOperationException($"User with ID '{request.UserId}' was not found.");
 
         user.IsActive = request.IsActive;
+
+        _context.AuditEvents.Add(new Domain.Entities.AuditEvent
+        {
+            Id = Guid.NewGuid(),
+            EventType = request.IsActive ? "UserReactivated" : "UserDeactivated",
+            Description = $"User {user.Email} was {(request.IsActive ? "reactivated" : "deactivated")} by admin.",
+            TargetUserId = user.Id,
+            OccurredAt = DateTime.UtcNow
+        });
+
         await _context.SaveChangesAsync(cancellationToken);
 
         return new DeactivateUserResult(user.Id, user.Email, user.IsActive);

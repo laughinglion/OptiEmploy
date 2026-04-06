@@ -42,7 +42,7 @@
                     </select>
                 </div>
                 <div class="col-md-2">
-                    <button class="btn btn-outline-secondary w-100" @onclick="LoadVerificationsAsync">
+                    <button class="btn btn-outline-secondary w-100" @onclick="() => { _page = 1; return LoadVerificationsAsync(); }">
                         Apply Filter
                     </button>
                 </div>
@@ -55,7 +55,7 @@
             <span>Verification Requests</span>
             @if (_verifications is not null)
             {
-                <span class="badge bg-secondary">@_verifications.Count total</span>
+                <span class="badge bg-secondary">@_totalCount total</span>
             }
         </div>
         <div class="card-body p-0">
@@ -188,6 +188,27 @@
             }
         </div>
     </div>
+
+    @if (_totalPages > 1)
+    {
+        <nav class="d-flex justify-content-center mt-3">
+            <ul class="pagination pagination-sm mb-0">
+                <li class="page-item @(_page <= 1 ? "disabled" : "")">
+                    <button class="page-link" @onclick="() => GoToPage(_page - 1)" disabled="@(_page <= 1)">Previous</button>
+                </li>
+                @for (var p = 1; p <= _totalPages; p++)
+                {
+                    var pageNum = p;
+                    <li class="page-item @(pageNum == _page ? "active" : "")">
+                        <button class="page-link" @onclick="() => GoToPage(pageNum)">@pageNum</button>
+                    </li>
+                }
+                <li class="page-item @(_page >= _totalPages ? "disabled" : "")">
+                    <button class="page-link" @onclick="() => GoToPage(_page + 1)" disabled="@(_page >= _totalPages)">Next</button>
+                </li>
+            </ul>
+        </nav>
+    }
 </div>
 
 @code {
@@ -195,13 +216,16 @@
     private bool _isLoading = true;
     private string? _errorMessage;
     private string _statusFilter = string.Empty;
+    private int _page = 1;
+    private int _totalCount;
+    private int _totalPages;
+    private const int PageSize = 20;
     private Guid? _expandedId;
     private Dictionary<Guid, VerificationDetailItem?> _detailMap = new();
 
-    protected override async Task OnInitializedAsync()
-    {
-        await LoadVerificationsAsync();
-    }
+    protected override async Task OnInitializedAsync() => await LoadVerificationsAsync();
+
+    private async Task GoToPage(int page) { _page = page; await LoadVerificationsAsync(); }
 
     private async Task LoadVerificationsAsync()
     {
@@ -212,14 +236,18 @@
         try
         {
             var client = HttpClientFactory.CreateClient("ApiClient");
-            var url = "/api/verifications" +
-                (!string.IsNullOrEmpty(_statusFilter) ? $"?status={Uri.EscapeDataString(_statusFilter)}" : "");
+            var qs = $"?page={_page}&pageSize={PageSize}";
+            if (!string.IsNullOrEmpty(_statusFilter))
+                qs += $"&status={Uri.EscapeDataString(_statusFilter)}";
 
-            var response = await client.GetAsync(url);
+            var response = await client.GetAsync($"/api/verifications{qs}");
 
             if (response.IsSuccessStatusCode)
             {
-                _verifications = await response.Content.ReadFromJsonAsync<List<VerificationSummaryItem>>() ?? new();
+                var result = await response.Content.ReadFromJsonAsync<PagedResultDto>();
+                _verifications = result?.Items ?? new();
+                _totalCount = result?.TotalCount ?? 0;
+                _totalPages = result?.TotalPages ?? 0;
             }
             else if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
             {
@@ -301,6 +329,15 @@
     };
 
     // ── Local DTOs ──
+
+    private sealed class PagedResultDto
+    {
+        public List<VerificationSummaryItem> Items { get; set; } = new();
+        public int TotalCount { get; set; }
+        public int Page { get; set; }
+        public int PageSize { get; set; }
+        public int TotalPages { get; set; }
+    }
 
     private sealed class VerificationSummaryItem
     {
