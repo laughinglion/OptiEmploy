@@ -21,4 +21,11 @@ public class User
     // Account lockout
     public int FailedLoginAttempts { get; set; }
     public DateTime? LockedUntil { get; set; }
+
+    // Password reset
+    public string? PasswordResetToken { get; set; }
+    public DateTime? PasswordResetTokenExpiresAt { get; set; }
+
+    // Profile
+    public string? PhoneNumber { get; set; }
 }

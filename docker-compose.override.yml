@@ -1,4 +1,12 @@
 services:
+  seq:
+    image: datalust/seq:latest
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+    ports:
+      - "5341:80"
+
   postgres:
     ports:
       - "5432:5432"
@@ -20,6 +28,8 @@ services:
       Smtp__EnableSsl: false
       Pricing__VerificationCostCredits: ${VERIFICATION_COST:-1.00}
       Encryption__FieldKey: ${ENCRYPTION_FIELD_KEY:-dev-encryption-key-not-for-production}
+      Serilog__WriteTo__0__Name: Seq
+      Serilog__WriteTo__0__Args__serverUrl: http://seq:80
       AdminSeed__Email: ${ADMIN_SEED_EMAIL:-admin@dev.local}
       AdminSeed__Password: ${ADMIN_SEED_PASSWORD:-Admin@12345}
       AdminSeed__FullName: Dev Administrator

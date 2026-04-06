@@ -88,17 +88,34 @@ public class SubmitVerificationCommandHandler : IRequestHandler<SubmitVerificati
 
         _context.VerificationRequests.Add(verification);
 
-        // AC 27 — deduct credit atomically with the request
-        var balanceBefore = requestor.CreditBalance;
-        requestor.CreditBalance -= _pricingSettings.VerificationCostCredits;
+        // AC 27 — deduct credit atomically with a conditional update to prevent double-spend
+        var cost = _pricingSettings.VerificationCostCredits;
+        var rowsUpdated = await _context.Users
+            .Where(u => u.Id == request.RequestorId && u.CreditBalance >= cost)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(u => u.CreditBalance, u => u.CreditBalance - cost), cancellationToken);
+
+        if (rowsUpdated == 0)
+            throw new InvalidOperationException(
+                $"Insufficient credit balance. Required: {cost:F2}, available: {requestor.CreditBalance:F2}.");
+
+        // Detach the stale user entity before re-reading
+        _context.Entry(requestor).State = EntityState.Detached;
+
+        // Re-read balance after atomic deduction for accurate transaction record
+        var newBalance = await _context.Users
+            .AsNoTracking()
+            .Where(u => u.Id == request.RequestorId)
+            .Select(u => u.CreditBalance)
+            .FirstAsync(cancellationToken);
 
         var creditTx = new Domain.Entities.CreditTransaction
         {
             Id = Guid.NewGuid(),
             UserId = requestor.Id,
-            Amount = -_pricingSettings.VerificationCostCredits,
-            BalanceBefore = balanceBefore,
-            BalanceAfter = requestor.CreditBalance,
+            Amount = -cost,
+            BalanceBefore = newBalance + cost,
+            BalanceAfter = newBalance,
             TransactionType = "Debit",
             Reason = $"Verification request submitted",
             RelatedVerificationId = verification.Id,

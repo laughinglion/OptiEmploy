@@ -53,6 +53,16 @@
                     </div>
                 </RoleGuard>
 
+                @* Account section — visible to all authenticated users *@
+                <div class="nav-item px-3 mt-2">
+                    <small class="text-white-50 text-uppercase fw-bold ps-2">Account</small>
+                </div>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="account/profile">
+                        <span class="bi bi-person-fill-nav-menu" aria-hidden="true"></span> My Profile
+                    </NavLink>
+                </div>
+
                 @* Admin section — User management and system settings *@
                 <RoleGuard Roles="@AppRoles.Admin">
                     <div class="nav-item px-3 mt-2">

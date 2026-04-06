@@ -26,6 +26,16 @@ public class AssignUserRoleCommandHandler : IRequestHandler<AssignUserRoleComman
         var previousRole = user.Role.ToString();
         user.Role = request.Role;
 
+        _context.AuditEvents.Add(new Domain.Entities.AuditEvent
+        {
+            Id = Guid.NewGuid(),
+            EventType = "RoleAssigned",
+            Description = $"User role changed from {previousRole} to {request.Role}.",
+            ActorUserId = null, // admin identity not passed to this handler
+            TargetUserId = user.Id,
+            OccurredAt = DateTime.UtcNow
+        });
+
         await _context.SaveChangesAsync(cancellationToken);
 
         return new AssignUserRoleResult(

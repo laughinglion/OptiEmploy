@@ -48,7 +48,17 @@ public class OutboxDispatcherService : BackgroundService
                 .Take(20)
                 .ToListAsync(cancellationToken);
 
-            if (pending.Count == 0) return;
+            if (pending.Count == 0)
+            {
+                // Check for dead-lettered messages (exhausted retries) and log critical alerts
+                var deadLetterCount = await context.OutboxMessages
+                    .CountAsync(m => m.SentAt == null && m.AttemptCount >= MaxAttempts, cancellationToken);
+
+                if (deadLetterCount > 0)
+                    _logger.LogCritical("Outbox: {Count} email(s) have exhausted all {Max} retry attempts and will not be sent. Manual intervention required.", deadLetterCount, MaxAttempts);
+
+                return;
+            }
 
             foreach (var msg in pending)
             {

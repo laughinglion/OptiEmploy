@@ -87,9 +87,12 @@
                                         }
                                     </td>
                                     <td class="text-end">
-                                        <button class="btn btn-sm btn-outline-primary"
+                                        <a href="/verifications/@v.Id" class="btn btn-sm btn-outline-primary me-1">
+                                            View
+                                        </a>
+                                        <button class="btn btn-sm btn-outline-secondary"
                                                 @onclick="() => ToggleDetails(v.Id)">
-                                            @(_expandedId == v.Id ? "Hide Details" : "View Details")
+                                            @(_expandedId == v.Id ? "Hide" : "Quick View")
                                         </button>
                                     </td>
                                 </tr>

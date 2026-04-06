@@ -163,10 +163,53 @@ public static class AuthEndpoints
         .Produces<ConfirmEmailResponse>(StatusCodes.Status200OK)
         .Produces(StatusCodes.Status400BadRequest);
 
+        // POST /api/auth/forgot-password — request password reset link
+        group.MapPost("/forgot-password", async (
+            ForgotPasswordRequest request,
+            HttpContext context,
+            IMediator mediator,
+            CancellationToken cancellationToken) =>
+        {
+            var baseUrl = $"{context.Request.Scheme}://{context.Request.Host}";
+            // Intentionally always 200 to prevent email enumeration
+            await mediator.Send(new ForgotPasswordCommand(request.Email, baseUrl), cancellationToken);
+            return Results.Ok(new { message = "If an account with that email exists, a reset link has been sent." });
+        })
+        .AllowAnonymous()
+        .RequireRateLimiting("auth")
+        .WithName("ForgotPassword")
+        .WithDescription("Request a password reset email. Always returns 200 to prevent email enumeration.")
+        .Produces(StatusCodes.Status200OK);
+
+        // POST /api/auth/reset-password — set new password using reset token
+        group.MapPost("/reset-password", async (
+            ResetPasswordRequest request,
+            IValidator<ResetPasswordCommand> validator,
+            IMediator mediator,
+            CancellationToken cancellationToken) =>
+        {
+            var command = new ResetPasswordCommand(request.Token, request.NewPassword);
+            var validationResult = await validator.ValidateAsync(command, cancellationToken);
+            if (!validationResult.IsValid)
+                return Results.ValidationProblem(validationResult.ToDictionary());
+
+            var result = await mediator.Send(command, cancellationToken);
+            return result.Success
+                ? Results.Ok(new { message = "Password reset successfully. You can now log in with your new password." })
+                : Results.BadRequest(new { error = result.ErrorMessage });
+        })
+        .AllowAnonymous()
+        .RequireRateLimiting("auth")
+        .WithName("ResetPassword")
+        .WithDescription("Reset password using a token from the forgot-password email")
+        .Produces(StatusCodes.Status200OK)
+        .Produces(StatusCodes.Status400BadRequest);
+
         // Admin-only endpoints — protected by JWT authentication + Admin role guard
         var adminGroup = app.MapGroup("/api/admin/users")
             .WithTags("User Management")
             .RequireAuthorization(AuthorizationPolicies.RequireAdmin)
+            .RequireRateLimiting("admin")
             .AddEndpointFilter(new RoleAuthorizationFilter(AppRoles.Admin));
 
         // GET /api/admin/users — list all users with optional role filter and pagination
@@ -334,3 +377,7 @@ public record LoginResponse(string Token, Guid UserId, string Email, string Full
 public record SsoLoginRequest(string Email, string? FullName, string? Provider);
 
 public record RefreshRequest(string RefreshToken);
+
+public record ForgotPasswordRequest(string Email);
+
+public record ResetPasswordRequest(string Token, string NewPassword);

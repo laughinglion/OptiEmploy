@@ -1,0 +1,525 @@
+@page "/account/profile"
+@attribute [Authorize]
+@using System.ComponentModel.DataAnnotations
+@using System.Text.Json
+@rendermode InteractiveServer
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager Navigation
+@layout EmploymentVerify.Web.Components.Layout.MainLayout
+
+<PageTitle>My Profile - Employment Verify</PageTitle>
+
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-7">
+
+            <h2 class="mb-1">My Profile</h2>
+            <p class="text-muted mb-4">Manage your account details and security settings.</p>
+
+            @if (_isLoading)
+            {
+                <div class="text-center p-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            }
+            else if (_profile is null)
+            {
+                <div class="alert alert-danger">Failed to load profile. Please refresh the page.</div>
+            }
+            else
+            {
+                @* ── Account summary ── *@
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header">Account Summary</div>
+                    <div class="card-body">
+                        <dl class="row mb-0">
+                            <dt class="col-sm-4">Email</dt>
+                            <dd class="col-sm-8">@_profile.Email</dd>
+                            <dt class="col-sm-4">Role</dt>
+                            <dd class="col-sm-8"><span class="badge bg-secondary">@_profile.Role</span></dd>
+                            <dt class="col-sm-4">Credits</dt>
+                            <dd class="col-sm-8"><strong>@_profile.CreditBalance.ToString("N2")</strong></dd>
+                            <dt class="col-sm-4">Email verified</dt>
+                            <dd class="col-sm-8">
+                                @if (_profile.IsEmailVerified)
+                                {
+                                    <span class="text-success"><span class="bi bi-check-circle-fill me-1" aria-hidden="true"></span>Verified</span>
+                                }
+                                else
+                                {
+                                    <span class="text-warning"><span class="bi bi-exclamation-circle-fill me-1" aria-hidden="true"></span>Not verified</span>
+                                }
+                            </dd>
+                            <dt class="col-sm-4">Member since</dt>
+                            <dd class="col-sm-8"><small>@_profile.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</small></dd>
+                        </dl>
+                    </div>
+                </div>
+
+                @* ── Edit profile ── *@
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header">Personal Details</div>
+                    <div class="card-body">
+                        @if (!string.IsNullOrEmpty(_profileSuccess))
+                        {
+                            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                                @_profileSuccess
+                                <button type="button" class="btn-close btn-close-sm" @onclick="() => _profileSuccess = null" aria-label="Close"></button>
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(_profileError))
+                        {
+                            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                                @_profileError
+                                <button type="button" class="btn-close btn-close-sm" @onclick="() => _profileError = null" aria-label="Close"></button>
+                            </div>
+                        }
+
+                        <EditForm Model="_profileModel" OnValidSubmit="SaveProfile" FormName="edit-profile" novalidate>
+                            <DataAnnotationsValidator />
+
+                            <div class="mb-3">
+                                <label for="fullName" class="form-label">Full Name <span class="text-danger">*</span></label>
+                                <InputText id="fullName" class="form-control" @bind-Value="_profileModel.FullName" />
+                                <ValidationMessage For="@(() => _profileModel.FullName)" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="companyName" class="form-label">Company Name</label>
+                                <InputText id="companyName" class="form-control" @bind-Value="_profileModel.CompanyName" placeholder="Optional" />
+                                <ValidationMessage For="@(() => _profileModel.CompanyName)" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="phoneNumber" class="form-label">Phone Number</label>
+                                <InputText id="phoneNumber" class="form-control" @bind-Value="_profileModel.PhoneNumber" placeholder="Optional" />
+                                <ValidationMessage For="@(() => _profileModel.PhoneNumber)" />
+                            </div>
+
+                            <button type="submit" class="btn btn-primary" disabled="@_isSavingProfile">
+                                @if (_isSavingProfile)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                }
+                                Save Changes
+                            </button>
+                        </EditForm>
+                    </div>
+                </div>
+
+                @* ── Change password ── *@
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header">Change Password</div>
+                    <div class="card-body">
+                        @if (!string.IsNullOrEmpty(_passwordSuccess))
+                        {
+                            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                                @_passwordSuccess
+                                <button type="button" class="btn-close btn-close-sm" @onclick="() => _passwordSuccess = null" aria-label="Close"></button>
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(_passwordError))
+                        {
+                            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                                @_passwordError
+                                <button type="button" class="btn-close btn-close-sm" @onclick="() => _passwordError = null" aria-label="Close"></button>
+                            </div>
+                        }
+
+                        <EditForm Model="_passwordModel" OnValidSubmit="ChangePassword" FormName="change-password" novalidate>
+                            <DataAnnotationsValidator />
+
+                            <div class="mb-3">
+                                <label for="currentPassword" class="form-label">Current Password <span class="text-danger">*</span></label>
+                                <InputText id="currentPassword" type="password" class="form-control" @bind-Value="_passwordModel.CurrentPassword" autocomplete="current-password" />
+                                <ValidationMessage For="@(() => _passwordModel.CurrentPassword)" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="newPassword" class="form-label">New Password <span class="text-danger">*</span></label>
+                                <InputText id="newPassword" type="password" class="form-control" @bind-Value="_passwordModel.NewPassword" autocomplete="new-password" />
+                                <ValidationMessage For="@(() => _passwordModel.NewPassword)" />
+                                <small class="form-text text-muted">Must contain uppercase, lowercase, digit, and special character.</small>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="confirmNewPassword" class="form-label">Confirm New Password <span class="text-danger">*</span></label>
+                                <InputText id="confirmNewPassword" type="password" class="form-control" @bind-Value="_passwordModel.ConfirmNewPassword" autocomplete="new-password" />
+                                <ValidationMessage For="@(() => _passwordModel.ConfirmNewPassword)" />
+                            </div>
+
+                            <button type="submit" class="btn btn-primary" disabled="@_isChangingPassword">
+                                @if (_isChangingPassword)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                }
+                                Update Password
+                            </button>
+                        </EditForm>
+                    </div>
+                </div>
+
+                @* ── POPIA data rights ── *@
+                <div class="card shadow-sm mb-4 border-info">
+                    <div class="card-header bg-info bg-opacity-10">POPIA Data Rights</div>
+                    <div class="card-body">
+                        <p class="text-muted mb-3" style="font-size: 0.9rem;">
+                            Under the Protection of Personal Information Act (POPIA), you have the right to access and delete your personal data.
+                        </p>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <button class="btn btn-outline-info btn-sm" @onclick="ExportData" disabled="@_isExporting">
+                                @if (_isExporting)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                                }
+                                else
+                                {
+                                    <span class="bi bi-download me-1" aria-hidden="true"></span>
+                                }
+                                Export My Data
+                            </button>
+                        </div>
+                        @if (!string.IsNullOrEmpty(_exportError))
+                        {
+                            <div class="alert alert-danger mt-2 mb-0 py-2" role="alert"><small>@_exportError</small></div>
+                        }
+                    </div>
+                </div>
+
+                @* ── Danger zone ── *@
+                <div class="card shadow-sm mb-4 border-danger">
+                    <div class="card-header bg-danger bg-opacity-10 text-danger">Danger Zone</div>
+                    <div class="card-body">
+                        @if (!_showDeleteConfirm)
+                        {
+                            <p class="text-muted mb-3" style="font-size: 0.9rem;">
+                                Deleting your account will permanently anonymise your personal data in accordance with your POPIA right to erasure.
+                                Your verification history will be retained but de-identified.
+                            </p>
+                            <button class="btn btn-outline-danger btn-sm" @onclick="() => _showDeleteConfirm = true">
+                                Delete My Account
+                            </button>
+                        }
+                        else
+                        {
+                            @if (!string.IsNullOrEmpty(_deleteError))
+                            {
+                                <div class="alert alert-danger alert-dismissible fade show py-2" role="alert">
+                                    <small>@_deleteError</small>
+                                    <button type="button" class="btn-close btn-close-sm" @onclick="() => _deleteError = null" aria-label="Close"></button>
+                                </div>
+                            }
+
+                            <p class="text-danger mb-3"><strong>This cannot be undone.</strong> Enter your password to confirm.</p>
+
+                            <EditForm Model="_deleteModel" OnValidSubmit="DeleteAccount" FormName="delete-account" novalidate>
+                                <DataAnnotationsValidator />
+
+                                <div class="mb-3">
+                                    <label for="deletePassword" class="form-label">Password <span class="text-danger">*</span></label>
+                                    <InputText id="deletePassword" type="password" class="form-control" @bind-Value="_deleteModel.Password" autocomplete="current-password" />
+                                    <ValidationMessage For="@(() => _deleteModel.Password)" />
+                                </div>
+
+                                <div class="d-flex gap-2">
+                                    <button type="submit" class="btn btn-danger btn-sm" disabled="@_isDeleting">
+                                        @if (_isDeleting)
+                                        {
+                                            <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                                        }
+                                        Confirm Delete
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="() => { _showDeleteConfirm = false; _deleteError = null; }">
+                                        Cancel
+                                    </button>
+                                </div>
+                            </EditForm>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private ProfileDto? _profile;
+    private bool _isLoading = true;
+
+    // Profile edit
+    private EditProfileModel _profileModel = new();
+    private bool _isSavingProfile;
+    private string? _profileSuccess;
+    private string? _profileError;
+
+    // Password change
+    private ChangePasswordModel _passwordModel = new();
+    private bool _isChangingPassword;
+    private string? _passwordSuccess;
+    private string? _passwordError;
+
+    // Data export
+    private bool _isExporting;
+    private string? _exportError;
+
+    // Account deletion
+    private bool _showDeleteConfirm;
+    private DeleteModel _deleteModel = new();
+    private bool _isDeleting;
+    private string? _deleteError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProfileAsync();
+    }
+
+    private async Task LoadProfileAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            var client = HttpClientFactory.CreateClient("ApiClient");
+            var response = await client.GetAsync("/api/me");
+
+            if (response.IsSuccessStatusCode)
+            {
+                _profile = await response.Content.ReadFromJsonAsync<ProfileDto>();
+                if (_profile is not null)
+                {
+                    _profileModel = new EditProfileModel
+                    {
+                        FullName = _profile.FullName,
+                        CompanyName = _profile.CompanyName,
+                        PhoneNumber = _profile.PhoneNumber
+                    };
+                }
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            {
+                Navigation.NavigateTo("/account/login");
+            }
+        }
+        catch (HttpRequestException)
+        {
+            // _profile stays null — UI shows error
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task SaveProfile()
+    {
+        _profileSuccess = null;
+        _profileError = null;
+        _isSavingProfile = true;
+        try
+        {
+            var client = HttpClientFactory.CreateClient("ApiClient");
+            var payload = new
+            {
+                fullName = _profileModel.FullName?.Trim(),
+                companyName = string.IsNullOrWhiteSpace(_profileModel.CompanyName) ? null : _profileModel.CompanyName.Trim(),
+                phoneNumber = string.IsNullOrWhiteSpace(_profileModel.PhoneNumber) ? null : _profileModel.PhoneNumber.Trim()
+            };
+            var response = await client.PutAsJsonAsync("/api/me/profile", payload);
+
+            if (response.IsSuccessStatusCode)
+            {
+                _profileSuccess = "Profile updated successfully.";
+                if (_profile is not null)
+                {
+                    _profile = _profile with
+                    {
+                        FullName = _profileModel.FullName ?? _profile.FullName,
+                        CompanyName = _profileModel.CompanyName,
+                        PhoneNumber = _profileModel.PhoneNumber
+                    };
+                }
+            }
+            else
+            {
+                _profileError = "Failed to update profile. Please try again.";
+            }
+        }
+        catch (HttpRequestException)
+        {
+            _profileError = "Unable to connect to the server. Please try again.";
+        }
+        finally
+        {
+            _isSavingProfile = false;
+        }
+    }
+
+    private async Task ChangePassword()
+    {
+        _passwordSuccess = null;
+        _passwordError = null;
+        _isChangingPassword = true;
+        try
+        {
+            var client = HttpClientFactory.CreateClient("ApiClient");
+            var payload = new { currentPassword = _passwordModel.CurrentPassword, newPassword = _passwordModel.NewPassword };
+            var response = await client.PutAsJsonAsync("/api/me/password", payload);
+
+            if (response.IsSuccessStatusCode)
+            {
+                _passwordSuccess = "Password changed successfully.";
+                _passwordModel = new ChangePasswordModel();
+            }
+            else
+            {
+                var content = await response.Content.ReadAsStringAsync();
+                try
+                {
+                    using var doc = JsonDocument.Parse(content);
+                    _passwordError = doc.RootElement.TryGetProperty("error", out var err)
+                        ? err.GetString()
+                        : "Failed to change password. Please check your current password and try again.";
+                }
+                catch
+                {
+                    _passwordError = "Failed to change password. Please try again.";
+                }
+            }
+        }
+        catch (HttpRequestException)
+        {
+            _passwordError = "Unable to connect to the server. Please try again.";
+        }
+        finally
+        {
+            _isChangingPassword = false;
+        }
+    }
+
+    private async Task ExportData()
+    {
+        _exportError = null;
+        _isExporting = true;
+        try
+        {
+            var client = HttpClientFactory.CreateClient("ApiClient");
+            var response = await client.GetAsync("/api/me/data-export");
+
+            if (response.IsSuccessStatusCode)
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                // Trigger browser download via JS interop is complex in Blazor Server;
+                // display the data inline as a downloadable text block instead.
+                Navigation.NavigateTo($"data:application/json;charset=utf-8,{Uri.EscapeDataString(json)}", forceLoad: true);
+            }
+            else
+            {
+                _exportError = "Failed to export data. Please try again.";
+            }
+        }
+        catch (HttpRequestException)
+        {
+            _exportError = "Unable to connect to the server. Please try again.";
+        }
+        finally
+        {
+            _isExporting = false;
+        }
+    }
+
+    private async Task DeleteAccount()
+    {
+        _deleteError = null;
+        _isDeleting = true;
+        try
+        {
+            var client = HttpClientFactory.CreateClient("ApiClient");
+            var payload = new { password = _deleteModel.Password };
+            // HttpClient.DeleteAsync doesn't support a body; use SendAsync
+            var request = new HttpRequestMessage(HttpMethod.Delete, "/api/me/account")
+            {
+                Content = JsonContent.Create(payload)
+            };
+            var response = await client.SendAsync(request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                Navigation.NavigateTo("/account/login?message=account-deleted", forceLoad: true);
+            }
+            else
+            {
+                var content = await response.Content.ReadAsStringAsync();
+                try
+                {
+                    using var doc = JsonDocument.Parse(content);
+                    _deleteError = doc.RootElement.TryGetProperty("error", out var err)
+                        ? err.GetString()
+                        : "Failed to delete account. Please check your password and try again.";
+                }
+                catch
+                {
+                    _deleteError = "Failed to delete account. Please try again.";
+                }
+            }
+        }
+        catch (HttpRequestException)
+        {
+            _deleteError = "Unable to connect to the server. Please try again.";
+        }
+        finally
+        {
+            _isDeleting = false;
+        }
+    }
+
+    // ── Local DTOs ──
+
+    private sealed record ProfileDto(
+        Guid Id,
+        string Email,
+        string FullName,
+        string? CompanyName,
+        string? PhoneNumber,
+        string Role,
+        decimal CreditBalance,
+        bool IsEmailVerified,
+        DateTime CreatedAt);
+
+    // ── Form models ──
+
+    private sealed class EditProfileModel
+    {
+        [Required(ErrorMessage = "Full name is required.")]
+        [StringLength(200, MinimumLength = 2, ErrorMessage = "Full name must be between 2 and 200 characters.")]
+        public string? FullName { get; set; }
+
+        [StringLength(200, ErrorMessage = "Company name must not exceed 200 characters.")]
+        public string? CompanyName { get; set; }
+
+        [StringLength(20, ErrorMessage = "Phone number must not exceed 20 characters.")]
+        public string? PhoneNumber { get; set; }
+    }
+
+    private sealed class ChangePasswordModel
+    {
+        [Required(ErrorMessage = "Current password is required.")]
+        public string? CurrentPassword { get; set; }
+
+        [Required(ErrorMessage = "New password is required.")]
+        [StringLength(128, MinimumLength = 8, ErrorMessage = "Password must be between 8 and 128 characters.")]
+        [RegularExpression(@"^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[^a-zA-Z0-9]).{8,128}$",
+            ErrorMessage = "Password must contain at least one uppercase letter, one lowercase letter, one digit, and one special character.")]
+        public string? NewPassword { get; set; }
+
+        [Required(ErrorMessage = "Please confirm your new password.")]
+        [Compare(nameof(NewPassword), ErrorMessage = "Passwords do not match.")]
+        public string? ConfirmNewPassword { get; set; }
+    }
+
+    private sealed class DeleteModel
+    {
+        [Required(ErrorMessage = "Password is required to confirm deletion.")]
+        public string? Password { get; set; }
+    }
+}

@@ -48,9 +48,20 @@ public class GetAuditLogQueryHandler : IRequestHandler<GetAuditLogQuery, PagedRe
                 n.VerificationRequestId.ToString()))
             .ToListAsync(cancellationToken);
 
+        var auditEvents = await _context.AuditEvents
+            .AsNoTracking()
+            .Select(a => new AuditLogEntryDto(
+                a.OccurredAt,
+                a.EventType,
+                a.Description,
+                null,
+                a.TargetUserId.HasValue ? a.TargetUserId.Value.ToString() : null))
+            .ToListAsync(cancellationToken);
+
         var allEvents = verificationEvents
             .Concat(creditEvents)
             .Concat(operatorNoteEvents)
+            .Concat(auditEvents)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(request.EventType))

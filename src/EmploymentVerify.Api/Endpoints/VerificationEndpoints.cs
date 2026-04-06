@@ -5,6 +5,7 @@ using EmploymentVerify.Application.Verifications.Commands;
 using EmploymentVerify.Application.Verifications.Queries;
 using EmploymentVerify.Domain.Constants;
 using EmploymentVerify.Domain.Enums;
+using FluentValidation;
 using MediatR;
 using SubmitVerificationResult = EmploymentVerify.Application.Verifications.Commands.SubmitVerificationResult;
 
@@ -18,7 +19,8 @@ public static class VerificationEndpoints
 
         var requestorGroup = app.MapGroup("/api/verifications")
             .WithTags("Verifications")
-            .RequireAuthorization(AuthorizationPolicies.RequireAnyRole);
+            .RequireAuthorization(AuthorizationPolicies.RequireAnyRole)
+            .RequireRateLimiting("verification");
 
         // POST /api/verifications — submit a new verification request
         requestorGroup.MapPost("/", async (
@@ -161,6 +163,7 @@ public static class VerificationEndpoints
             Guid id,
             OperatorCallRequest request,
             HttpContext context,
+            IValidator<RecordOperatorCallCommand> validator,
             IMediator mediator,
             CancellationToken cancellationToken) =>
         {
@@ -181,6 +184,10 @@ public static class VerificationEndpoints
                 request.ConfirmedEndDate,
                 request.IsCurrentlyEmployed,
                 request.ResponseNotes);
+
+            var validationResult = await validator.ValidateAsync(command, cancellationToken);
+            if (!validationResult.IsValid)
+                return Results.ValidationProblem(validationResult.ToDictionary());
 
             var result = await mediator.Send(command, cancellationToken);
 
@@ -286,6 +293,7 @@ public static class VerificationEndpoints
         // POST /api/verify/confirm — submit HR response
         publicGroup.MapPost("/confirm", async (
             HrConfirmRequest request,
+            IValidator<RecordHrResponseCommand> validator,
             IMediator mediator,
             CancellationToken cancellationToken) =>
         {
@@ -301,6 +309,10 @@ public static class VerificationEndpoints
                 request.ConfirmedEndDate,
                 request.IsCurrentlyEmployed,
                 request.Notes);
+
+            var validationResult = await validator.ValidateAsync(command, cancellationToken);
+            if (!validationResult.IsValid)
+                return Results.ValidationProblem(validationResult.ToDictionary());
 
             var result = await mediator.Send(command, cancellationToken);
 

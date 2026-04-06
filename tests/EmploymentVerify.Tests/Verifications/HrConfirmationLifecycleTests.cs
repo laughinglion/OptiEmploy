@@ -1,3 +1,4 @@
+using EmploymentVerify.Application.Common;
 using EmploymentVerify.Application.Verifications.Commands;
 using EmploymentVerify.Domain.Entities;
 using EmploymentVerify.Domain.Enums;
@@ -24,7 +25,13 @@ public class HrConfirmationLifecycleTests : IDisposable
         _context = new ApplicationDbContext(options);
         _context.Database.OpenConnection();
         _context.Database.EnsureCreated();
-        _handler = new RecordHrResponseCommandHandler(_context);
+        _handler = new RecordHrResponseCommandHandler(_context, new NullEmailSender());
+    }
+
+    private sealed class NullEmailSender : IEmailSender
+    {
+        public Task SendEmailAsync(string to, string subject, string htmlBody, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
     }
 
     private async Task<(VerificationRequest verification, EmailVerificationToken token)> SeedPendingVerification(

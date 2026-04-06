@@ -14,6 +14,7 @@ public static class CompanyEndpoints
         var group = app.MapGroup("/api/companies")
             .WithTags("Companies")
             .RequireAuthorization(AuthorizationPolicies.RequireAdmin)
+            .RequireRateLimiting("admin")
             .AddEndpointFilter(new RoleAuthorizationFilter(AppRoles.Admin));
 
         // List companies with optional search and filtering

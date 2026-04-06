@@ -25,6 +25,7 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<CreditTransaction> CreditTransactions => Set<CreditTransaction>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+    public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -181,6 +182,7 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
             entity.Property(e => e.RespondedAt).HasColumnName("responded_at").IsRequired();
 
             entity.HasIndex(e => e.VerificationRequestId).IsUnique();
+            entity.HasIndex(e => e.RespondedAt);
 
             entity.HasOne(e => e.VerificationRequest)
                 .WithMany()
@@ -308,6 +310,21 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
 
             entity.Property(e => e.LockedUntil)
                 .HasColumnName("locked_until");
+
+            entity.Property(e => e.PasswordResetToken)
+                .HasColumnName("password_reset_token")
+                .HasMaxLength(256);
+
+            entity.HasIndex(e => e.PasswordResetToken)
+                .IsUnique()
+                .HasFilter("password_reset_token IS NOT NULL");
+
+            entity.Property(e => e.PasswordResetTokenExpiresAt)
+                .HasColumnName("password_reset_token_expires_at");
+
+            entity.Property(e => e.PhoneNumber)
+                .HasColumnName("phone_number")
+                .HasMaxLength(20);
         });
 
         modelBuilder.Entity<RefreshToken>(entity =>
@@ -340,6 +357,22 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
             entity.Ignore(e => e.IsSent); // computed property
             entity.HasIndex(e => e.SentAt);
             entity.HasIndex(e => e.CreatedAt);
+        });
+
+        modelBuilder.Entity<AuditEvent>(entity =>
+        {
+            entity.ToTable("audit_events");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.EventType).HasColumnName("event_type").HasMaxLength(100).IsRequired();
+            entity.Property(e => e.Description).HasColumnName("description").HasMaxLength(1000).IsRequired();
+            entity.Property(e => e.ActorUserId).HasColumnName("actor_user_id");
+            entity.Property(e => e.TargetUserId).HasColumnName("target_user_id");
+            entity.Property(e => e.Metadata).HasColumnName("metadata").HasMaxLength(4000);
+            entity.Property(e => e.OccurredAt).HasColumnName("occurred_at").HasDefaultValueSql("NOW()");
+            entity.HasIndex(e => e.EventType);
+            entity.HasIndex(e => e.OccurredAt);
+            entity.HasIndex(e => e.ActorUserId);
         });
 
         modelBuilder.Entity<CreditTransaction>(entity =>

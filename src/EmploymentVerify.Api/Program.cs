@@ -45,9 +45,9 @@ builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddApiAuthentication(builder.Configuration);
 builder.Services.AddAppAuthorization();
 
-// Health checks
+// Health checks — liveness (always healthy) and readiness (checks DB)
 builder.Services.AddHealthChecks()
-    .AddNpgSql(builder.Configuration.GetConnectionString("DefaultConnection")!);
+    .AddNpgSql(builder.Configuration.GetConnectionString("DefaultConnection")!, tags: ["ready"]);
 
 // Rate limiting
 builder.Services.AddRateLimiter(options =>
@@ -59,8 +59,44 @@ builder.Services.AddRateLimiter(options =>
         opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
         opt.QueueLimit = 0;
     });
+    options.AddFixedWindowLimiter("verification", opt =>
+    {
+        opt.PermitLimit = 20;
+        opt.Window = TimeSpan.FromMinutes(1);
+        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        opt.QueueLimit = 0;
+    });
+    options.AddFixedWindowLimiter("admin", opt =>
+    {
+        opt.PermitLimit = 60;
+        opt.Window = TimeSpan.FromMinutes(1);
+        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        opt.QueueLimit = 0;
+    });
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 });
+
+// ── Validate critical secrets in non-Development environments ──
+if (!builder.Environment.IsDevelopment())
+{
+    var jwtKey = builder.Configuration["Jwt:SecretKey"] ?? "";
+    if (string.IsNullOrWhiteSpace(jwtKey) || jwtKey.StartsWith("CHANGE_THIS"))
+        throw new InvalidOperationException("Jwt:SecretKey must be set to a secure value in production. Set via environment variable Jwt__SecretKey.");
+
+    var encryptionKey = builder.Configuration["Encryption:FieldKey"] ?? "";
+    if (string.IsNullOrWhiteSpace(encryptionKey) || encryptionKey.StartsWith("CHANGE_THIS"))
+        throw new InvalidOperationException("Encryption:FieldKey must be set to a secure value in production. Set via environment variable Encryption__FieldKey.");
+
+    var smtpPassword = builder.Configuration["Smtp:Password"] ?? "";
+    var smtpUsername = builder.Configuration["Smtp:Username"] ?? "";
+    if (string.IsNullOrWhiteSpace(smtpPassword) || smtpPassword == "your-app-password-here"
+        || string.IsNullOrWhiteSpace(smtpUsername) || smtpUsername == "your-email@gmail.com")
+        throw new InvalidOperationException("Smtp:Username and Smtp:Password must be configured for production. Set via environment variables.");
+
+    var allowedHosts = builder.Configuration["AllowedHosts"] ?? "*";
+    if (allowedHosts == "*")
+        Log.Warning("AllowedHosts is set to '*' — this allows Host header injection. Set AllowedHosts to your domain in production.");
+}
 
 var app = builder.Build();
 
@@ -69,6 +105,10 @@ if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
 }
+
+// Correlation ID + global exception handler — outermost middleware
+app.UseMiddleware<CorrelationIdMiddleware>();
+app.UseMiddleware<GlobalExceptionMiddleware>();
 
 app.UseHttpsRedirection();
 
@@ -87,12 +127,21 @@ app.UseMiddleware<RequestLoggingMiddleware>();
 
 // Map endpoints
 app.MapAuthEndpoints();
+app.MapMeEndpoints();
 app.MapCompanyEndpoints();
 app.MapCompanySearchEndpoints();
 app.MapVerificationEndpoints();
 
-// Health check endpoint
-app.MapHealthChecks("/health");
+// Health check endpoints — /health/live for liveness, /health/ready for readiness (checks DB)
+app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = _ => false // no checks — always returns Healthy
+});
+app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready")
+});
+app.MapHealthChecks("/health"); // backwards-compatible: runs all checks
 
 // Auto-migrate on startup (all environments)
 using (var scope = app.Services.CreateScope())

@@ -24,9 +24,11 @@ public class SubmitVerificationIntegrationTests : IDisposable
     public SubmitVerificationIntegrationTests()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseSqlite("DataSource=:memory:")
             .Options;
         _context = new ApplicationDbContext(options);
+        _context.Database.OpenConnection();
+        _context.Database.EnsureCreated();
         _mediator = new FakeMediator();
         var pricing = Options.Create(new PricingSettings { VerificationCostCredits = 1.00m });
         _handler = new SubmitVerificationCommandHandler(_context, _mediator, pricing);
@@ -74,8 +76,9 @@ public class SubmitVerificationIntegrationTests : IDisposable
         var user = await CreateRequestorWithCredits(5m);
         await _handler.Handle(BuildCommand(user.Id), CancellationToken.None);
 
-        var updated = await _context.Users.FindAsync(user.Id);
-        updated!.CreditBalance.Should().Be(4m);
+        // Re-read with AsNoTracking — ExecuteUpdateAsync bypasses the change tracker
+        var updated = await _context.Users.AsNoTracking().FirstAsync(u => u.Id == user.Id);
+        updated.CreditBalance.Should().Be(4m);
     }
 
     [Fact]
@@ -84,7 +87,7 @@ public class SubmitVerificationIntegrationTests : IDisposable
         var user = await CreateRequestorWithCredits(5m);
         await _handler.Handle(BuildCommand(user.Id), CancellationToken.None);
 
-        var tx = await _context.CreditTransactions.FirstOrDefaultAsync();
+        var tx = await _context.CreditTransactions.AsNoTracking().FirstOrDefaultAsync();
         tx.Should().NotBeNull();
         tx!.Amount.Should().Be(-1m);
         tx.BalanceBefore.Should().Be(5m);
@@ -162,7 +165,11 @@ public class SubmitVerificationIntegrationTests : IDisposable
         _mediator.EmailsSent.Should().Be(1);
     }
 
-    public void Dispose() => _context.Dispose();
+    public void Dispose()
+    {
+        _context.Database.CloseConnection();
+        _context.Dispose();
+    }
 
     private class FakeMediator : IMediator
     {
@@ -181,8 +188,11 @@ public class SubmitVerificationIntegrationTests : IDisposable
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest
             => Task.CompletedTask;
 
-        public IAsyncEnumerable<TResponse> CreateStream<TResponse>(IStreamRequest<TResponse> request, CancellationToken cancellationToken = default)
-            => throw new NotImplementedException();
+        public async IAsyncEnumerable<TResponse> CreateStream<TResponse>(IStreamRequest<TResponse> request, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            await Task.CompletedTask;
+            yield break;
+        }
 
         public Task Publish(object notification, CancellationToken cancellationToken = default)
             => Task.CompletedTask;
@@ -190,8 +200,11 @@ public class SubmitVerificationIntegrationTests : IDisposable
         public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default) where TNotification : INotification
             => Task.CompletedTask;
 
-        public IAsyncEnumerable<object?> CreateStream(object request, CancellationToken cancellationToken = default)
-            => throw new NotImplementedException();
+        public async IAsyncEnumerable<object?> CreateStream(object request, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            await Task.CompletedTask;
+            yield break;
+        }
 
         public Task<object?> Send(object request, CancellationToken cancellationToken = default)
             => Task.FromResult<object?>(null);

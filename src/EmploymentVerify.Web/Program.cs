@@ -33,6 +33,7 @@ builder.Services.AddHttpClient("ApiClient", client =>
 {
     client.BaseAddress = new Uri(apiBaseUrl);
     client.DefaultRequestHeaders.Add("Accept", "application/json");
+    client.Timeout = TimeSpan.FromSeconds(30);
 })
 .AddHttpMessageHandler<BearerTokenHandler>();
 
@@ -95,7 +96,7 @@ app.Use(async (ctx, next) =>
     ctx.Response.Headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()";
     ctx.Response.Headers["Content-Security-Policy"] =
         "default-src 'self'; " +
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; " +
+        "script-src 'self' 'unsafe-inline'; " +
         "style-src 'self' 'unsafe-inline'; " +
         "img-src 'self' data:; " +
         "connect-src 'self' wss:; " +
