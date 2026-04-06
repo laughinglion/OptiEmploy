@@ -23,6 +23,19 @@ builder.Host.UseSerilog((context, services, configuration) => configuration
     .ReadFrom.Services(services)
     .WriteTo.Console(new CompactJsonFormatter()));
 
+// CORS — allow Web app to call API
+var webOrigin = builder.Configuration.GetValue<string>("WebOrigin") ?? "https://localhost:5002";
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("WebApp", policy =>
+    {
+        policy.WithOrigins(webOrigin)
+              .AllowAnyMethod()
+              .AllowAnyHeader()
+              .AllowCredentials();
+    });
+});
+
 // Add services
 builder.Services.AddOpenApi();
 builder.Services.AddApplication();
@@ -58,6 +71,9 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+// CORS — before auth
+app.UseCors("WebApp");
 
 // Rate limiting middleware — before authentication
 app.UseRateLimiter();

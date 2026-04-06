@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EmploymentVerify.Application.Verifications.Queries;
 
-public class GetAllVerificationsQueryHandler : IRequestHandler<GetAllVerificationsQuery, List<VerificationSummaryDto>>
+public class GetAllVerificationsQueryHandler : IRequestHandler<GetAllVerificationsQuery, PagedResult<VerificationSummaryDto>>
 {
     private readonly IApplicationDbContext _context;
 
@@ -14,7 +14,7 @@ public class GetAllVerificationsQueryHandler : IRequestHandler<GetAllVerificatio
         _context = context;
     }
 
-    public async Task<List<VerificationSummaryDto>> Handle(GetAllVerificationsQuery request, CancellationToken cancellationToken)
+    public async Task<PagedResult<VerificationSummaryDto>> Handle(GetAllVerificationsQuery request, CancellationToken cancellationToken)
     {
         var query = _context.VerificationRequests.AsNoTracking().AsQueryable();
 
@@ -24,8 +24,15 @@ public class GetAllVerificationsQueryHandler : IRequestHandler<GetAllVerificatio
             query = query.Where(v => v.Status == status);
         }
 
-        var verifications = await query
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        var page = Math.Max(1, request.Page);
+        var pageSize = Math.Clamp(request.PageSize, 1, 100);
+
+        var items = await query
             .OrderByDescending(v => v.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .Select(v => new VerificationSummaryDto(
                 v.Id,
                 v.EmployeeFullName,
@@ -36,6 +43,6 @@ public class GetAllVerificationsQueryHandler : IRequestHandler<GetAllVerificatio
                 v.CompletedAt))
             .ToListAsync(cancellationToken);
 
-        return verifications;
+        return new PagedResult<VerificationSummaryDto>(items, totalCount, page, pageSize);
     }
 }

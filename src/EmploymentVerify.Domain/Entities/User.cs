@@ -17,4 +17,8 @@ public class User
     public DateTime? EmailVerificationTokenExpiresAt { get; set; }
     public DateTime? EmailVerifiedAt { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    // Account lockout
+    public int FailedLoginAttempts { get; set; }
+    public DateTime? LockedUntil { get; set; }
 }

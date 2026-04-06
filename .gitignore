@@ -1,1 +1,43 @@
+# Build outputs
+bin/
+obj/
+
+# Environment files
 .env
+.env.local
+.env.*.local
+
+# User-specific VS files
+*.user
+*.suo
+.vs/
+
+# JetBrains Rider
+.idea/
+
+# Rider
+*.sln.iml
+
+# Rider/VS Code
+.vscode/
+
+# dotnet publish
+publish/
+out/
+
+# NuGet
+*.nupkg
+*.nuget.props
+*.nuget.targets
+.nuget/
+
+# Logs
+logs/
+*.log
+
+# Docker volumes (if mounted locally)
+postgres-data/
+
+# OS
+.DS_Store
+Thumbs.db

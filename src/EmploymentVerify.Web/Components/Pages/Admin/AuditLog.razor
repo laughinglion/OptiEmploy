@@ -1,81 +1,131 @@
 @page "/admin/audit-log"
 @attribute [Authorize(Policy = AuthorizationPolicies.RequireAdmin)]
 @rendermode InteractiveServer
+@using EmploymentVerify.Domain.Constants
 @inject IHttpClientFactory HttpClientFactory
 
 <PageTitle>Audit Log - Employment Verify</PageTitle>
 
 <div class="container-fluid mt-4">
     <h2 class="mb-1">Audit Log</h2>
-    <p class="text-muted mb-4">Review all system activity for POPIA compliance and security monitoring.</p>
+    <p class="text-muted mb-4">Review system activity for POPIA compliance and security monitoring.</p>
 
-    <div class="card shadow-sm">
-        <div class="card-header bg-light">
+    <div class="card shadow-sm mb-3">
+        <div class="card-header bg-light d-flex align-items-center gap-3">
             <strong>Activity Log</strong>
+            <select class="form-select form-select-sm w-auto" @bind="_eventTypeFilter" @bind:after="LoadAsync">
+                <option value="">All Events</option>
+                <option value="VerificationSubmitted">Verifications</option>
+                <option value="CreditTransaction">Credit Transactions</option>
+                <option value="OperatorCall">Operator Calls</option>
+            </select>
         </div>
-        <div class="card-body">
-            <div class="alert alert-info mb-3">
-                <strong>Audit log API endpoint is not yet available.</strong>
-                A dedicated <code>GET /api/admin/audit-log</code> endpoint will be implemented in a future release.
-                All data access and modification events are currently logged server-side via the request logging
-                middleware and can be reviewed in the application logs.
-            </div>
+        <div class="card-body p-0">
+            @if (_loading)
+            {
+                <div class="p-4 text-center text-muted"><div class="spinner-border spinner-border-sm me-2"></div> Loading...</div>
+            }
+            else if (_error is not null)
+            {
+                <div class="alert alert-danger m-3">@_error</div>
+            }
+            else if (_entries is null || _entries.Count == 0)
+            {
+                <p class="text-muted p-4">No audit events found.</p>
+            }
+            else
+            {
+                <table class="table table-hover table-sm mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Time (UTC)</th>
+                            <th>Event</th>
+                            <th>Description</th>
+                            <th>Actor</th>
+                            <th>Reference</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var entry in _entries)
+                        {
+                            <tr>
+                                <td class="text-nowrap small">@entry.OccurredAt.ToString("yyyy-MM-dd HH:mm")</td>
+                                <td><span class="badge @GetBadgeClass(entry.EventType)">@entry.EventType</span></td>
+                                <td>@entry.Description</td>
+                                <td class="small text-muted">@(entry.ActorEmail ?? "—")</td>
+                                <td class="small text-muted font-monospace">@(entry.RelatedEntityId is not null ? entry.RelatedEntityId[..8] + "…" : "—")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
 
-            <h6 class="text-muted mb-3">What is audited</h6>
-            <div class="row g-3">
-                <div class="col-md-4">
-                    <div class="card border-0 bg-light">
-                        <div class="card-body py-3">
-                            <h6 class="card-title">Verification Requests</h6>
-                            <ul class="small text-muted mb-0">
-                                <li>Submission of new requests</li>
-                                <li>Status changes</li>
-                                <li>Operator call outcomes</li>
-                                <li>HR email confirmations</li>
-                            </ul>
+                @if (_totalPages > 1)
+                {
+                    <div class="d-flex justify-content-between align-items-center p-3">
+                        <small class="text-muted">Page @_page of @_totalPages (@_totalCount events total)</small>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-secondary" disabled="@(_page <= 1)" @onclick="PreviousPage">Prev</button>
+                            <button class="btn btn-outline-secondary" disabled="@(_page >= _totalPages)" @onclick="NextPage">Next</button>
                         </div>
                     </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="card border-0 bg-light">
-                        <div class="card-body py-3">
-                            <h6 class="card-title">User Management</h6>
-                            <ul class="small text-muted mb-0">
-                                <li>User registrations</li>
-                                <li>Role assignments</li>
-                                <li>Login events</li>
-                                <li>Email confirmations</li>
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="card border-0 bg-light">
-                        <div class="card-body py-3">
-                            <h6 class="card-title">Data Access (POPIA)</h6>
-                            <ul class="small text-muted mb-0">
-                                <li>SA ID number lookups</li>
-                                <li>Personal data queries</li>
-                                <li>Company data changes</li>
-                                <li>Admin operations</li>
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="mt-4">
-                <h6 class="text-muted mb-2">Recent Verification Activity</h6>
-                <p class="text-muted small">
-                    To review recent verification activity, visit the
-                    <a href="/operations/verifications">All Verifications</a> page which provides
-                    a full list of all requests with timestamps.
-                </p>
-            </div>
+                }
+            }
         </div>
     </div>
 </div>
 
 @code {
-    // Audit log API not yet available — page shows informational content
+    private List<AuditEntry>? _entries;
+    private bool _loading = true;
+    private string? _error;
+    private string _eventTypeFilter = "";
+    private int _page = 1;
+    private int _totalCount;
+    private int _totalPages;
+    private const int PageSize = 50;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        StateHasChanged();
+        try
+        {
+            var client = HttpClientFactory.CreateClient("ApiClient");
+            var qs = $"?page={_page}&pageSize={PageSize}";
+            if (!string.IsNullOrWhiteSpace(_eventTypeFilter)) qs += $"&eventType={_eventTypeFilter}";
+
+            var response = await client.GetFromJsonAsync<PagedResult<AuditEntry>>($"/api/verifications/audit-log{qs}");
+            if (response is not null)
+            {
+                _entries = response.Items;
+                _totalCount = response.TotalCount;
+                _totalPages = response.TotalPages;
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to load audit log: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task PreviousPage() { _page--; await LoadAsync(); }
+    private async Task NextPage() { _page++; await LoadAsync(); }
+
+    private static string GetBadgeClass(string eventType) => eventType switch
+    {
+        "VerificationSubmitted" => "bg-primary",
+        "CreditTransaction"     => "bg-success",
+        "OperatorCall"          => "bg-info text-dark",
+        _                       => "bg-secondary"
+    };
+
+    private record AuditEntry(DateTime OccurredAt, string EventType, string Description, string? ActorEmail, string? RelatedEntityId);
+    private record PagedResult<T>(List<T> Items, int TotalCount, int Page, int PageSize, int TotalPages);
 }

@@ -169,19 +169,21 @@ public static class AuthEndpoints
             .RequireAuthorization(AuthorizationPolicies.RequireAdmin)
             .AddEndpointFilter(new RoleAuthorizationFilter(AppRoles.Admin));
 
-        // GET /api/admin/users — list all users with optional role filter
+        // GET /api/admin/users — list all users with optional role filter and pagination
         adminGroup.MapGet("/", async (
             string? role,
+            int page,
+            int pageSize,
             IMediator mediator,
             CancellationToken cancellationToken) =>
         {
-            var query = new ListUsersQuery(role);
+            var query = new ListUsersQuery(role, page == 0 ? 1 : page, pageSize == 0 ? 20 : pageSize);
             var result = await mediator.Send(query, cancellationToken);
             return Results.Ok(result);
         })
         .WithName("ListUsers")
-        .WithDescription("List all users, optionally filtered by role (Admin only)")
-        .Produces<List<UserSummaryDto>>(StatusCodes.Status200OK);
+        .WithDescription("List all users, optionally filtered by role (Admin only), with pagination")
+        .Produces<Application.Common.PagedResult<UserSummaryDto>>(StatusCodes.Status200OK);
 
         // PATCH /api/admin/users/{userId}/active — activate/deactivate a user
         adminGroup.MapPatch("/{userId:guid}/active", async (

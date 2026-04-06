@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using EmploymentVerify.Api.Filters;
+using EmploymentVerify.Application.Admin.Queries;
 using EmploymentVerify.Application.Verifications.Commands;
 using EmploymentVerify.Application.Verifications.Queries;
 using EmploymentVerify.Domain.Constants;
@@ -110,32 +111,36 @@ public static class VerificationEndpoints
 
         // GET /api/verifications/work-queue — operator/admin work queue
         requestorGroup.MapGet("/work-queue", async (
+            int page,
+            int pageSize,
             IMediator mediator,
             CancellationToken cancellationToken) =>
         {
-            var query = new GetWorkQueueQuery();
+            var query = new GetWorkQueueQuery(page == 0 ? 1 : page, pageSize == 0 ? 20 : pageSize);
             var result = await mediator.Send(query, cancellationToken);
             return Results.Ok(result);
         })
         .AddEndpointFilter(new RoleAuthorizationFilter(AppRoles.Admin, AppRoles.Operator))
         .WithName("GetWorkQueue")
         .WithDescription("Get the pending and in-progress verification work queue (Operator/Admin only)")
-        .Produces<List<WorkQueueItemDto>>(StatusCodes.Status200OK);
+        .Produces<Application.Common.PagedResult<WorkQueueItemDto>>(StatusCodes.Status200OK);
 
         // GET /api/verifications — admin: get all verifications
         requestorGroup.MapGet("/", async (
             string? status,
+            int page,
+            int pageSize,
             IMediator mediator,
             CancellationToken cancellationToken) =>
         {
-            var query = new GetAllVerificationsQuery(status);
+            var query = new GetAllVerificationsQuery(status, page == 0 ? 1 : page, pageSize == 0 ? 20 : pageSize);
             var result = await mediator.Send(query, cancellationToken);
             return Results.Ok(result);
         })
         .AddEndpointFilter(new RoleAuthorizationFilter(AppRoles.Admin))
         .WithName("GetAllVerifications")
-        .WithDescription("Get all verification requests with optional status filter (Admin only)")
-        .Produces<List<VerificationSummaryDto>>(StatusCodes.Status200OK);
+        .WithDescription("Get all verification requests with optional status filter (Admin only), paginated")
+        .Produces<Application.Common.PagedResult<VerificationSummaryDto>>(StatusCodes.Status200OK);
 
         // GET /api/verifications/stats — admin: aggregated stats
         requestorGroup.MapGet("/stats", async (
@@ -188,6 +193,51 @@ public static class VerificationEndpoints
         .WithDescription("Record the outcome of an operator phone call for a verification (Operator/Admin only)")
         .Produces(StatusCodes.Status200OK)
         .Produces(StatusCodes.Status404NotFound);
+
+        // GET /api/verifications/{id}/export — download verification certificate as HTML (print-to-PDF)
+        requestorGroup.MapGet("/{id:guid}/export", async (
+            Guid id,
+            HttpContext context,
+            IMediator mediator,
+            CancellationToken cancellationToken) =>
+        {
+            var userIdStr = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (userIdStr is null || !Guid.TryParse(userIdStr, out var userId))
+                return Results.Unauthorized();
+
+            var roleValue = context.User.FindFirst(ClaimTypes.Role)?.Value;
+            var isAdmin = string.Equals(roleValue, AppRoles.Admin, StringComparison.OrdinalIgnoreCase)
+                       || string.Equals(roleValue, AppRoles.Operator, StringComparison.OrdinalIgnoreCase);
+
+            var bytes = await mediator.Send(new ExportVerificationPdfQuery(id, userId, isAdmin), cancellationToken);
+
+            if (bytes is null)
+                return Results.NotFound(new { error = "Verification not found, not accessible, or not yet completed." });
+
+            return Results.File(bytes, "text/html", $"verification-{id}.html");
+        })
+        .AddEndpointFilter(new RoleAuthorizationFilter(AppRoles.Requestor, AppRoles.Admin, AppRoles.Operator))
+        .WithName("ExportVerification")
+        .WithDescription("Export a completed verification certificate as a printable HTML file")
+        .Produces(StatusCodes.Status200OK)
+        .Produces(StatusCodes.Status404NotFound);
+
+        // GET /api/admin/audit-log — queryable audit timeline
+        requestorGroup.MapGet("/audit-log", async (
+            string? eventType,
+            int page,
+            int pageSize,
+            IMediator mediator,
+            CancellationToken cancellationToken) =>
+        {
+            var query = new GetAuditLogQuery(eventType, page == 0 ? 1 : page, pageSize == 0 ? 50 : pageSize);
+            var result = await mediator.Send(query, cancellationToken);
+            return Results.Ok(result);
+        })
+        .AddEndpointFilter(new RoleAuthorizationFilter(AppRoles.Admin))
+        .WithName("GetAuditLog")
+        .WithDescription("Get queryable audit log of system events (Admin only)")
+        .Produces<Application.Common.PagedResult<AuditLogEntryDto>>(StatusCodes.Status200OK);
 
         // POST /api/verifications/{id}/resend-email — operator resends HR verification email
         requestorGroup.MapPost("/{id:guid}/resend-email", async (

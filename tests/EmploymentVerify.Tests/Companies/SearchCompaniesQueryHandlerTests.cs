@@ -3,6 +3,7 @@ using EmploymentVerify.Domain.Entities;
 using EmploymentVerify.Infrastructure.Persistence;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace EmploymentVerify.Tests.Companies;
 
@@ -15,6 +16,8 @@ public class SearchCompaniesQueryHandlerTests
             .Options;
         return new ApplicationDbContext(options);
     }
+
+    private static IMemoryCache CreateCache() => new MemoryCache(new MemoryCacheOptions());
 
     private static void SeedCompanies(ApplicationDbContext context)
     {
@@ -52,7 +55,7 @@ public class SearchCompaniesQueryHandlerTests
     {
         using var context = CreateDbContext();
         SeedCompanies(context);
-        var handler = new SearchCompaniesQueryHandler(context);
+        var handler = new SearchCompaniesQueryHandler(context, CreateCache());
 
         var result = await handler.Handle(new SearchCompaniesQuery("alpha"), CancellationToken.None);
 
@@ -66,7 +69,7 @@ public class SearchCompaniesQueryHandlerTests
     {
         using var context = CreateDbContext();
         SeedCompanies(context);
-        var handler = new SearchCompaniesQueryHandler(context);
+        var handler = new SearchCompaniesQueryHandler(context, CreateCache());
 
         var result = await handler.Handle(new SearchCompaniesQuery("beta"), CancellationToken.None);
 
@@ -79,7 +82,7 @@ public class SearchCompaniesQueryHandlerTests
     {
         using var context = CreateDbContext();
         SeedCompanies(context);
-        var handler = new SearchCompaniesQueryHandler(context);
+        var handler = new SearchCompaniesQueryHandler(context, CreateCache());
 
         var result = await handler.Handle(new SearchCompaniesQuery("gamma"), CancellationToken.None);
 
@@ -92,7 +95,7 @@ public class SearchCompaniesQueryHandlerTests
     {
         using var context = CreateDbContext();
         SeedCompanies(context);
-        var handler = new SearchCompaniesQueryHandler(context);
+        var handler = new SearchCompaniesQueryHandler(context, CreateCache());
 
         var result = await handler.Handle(new SearchCompaniesQuery("ALPHA"), CancellationToken.None);
 
@@ -104,7 +107,7 @@ public class SearchCompaniesQueryHandlerTests
     {
         using var context = CreateDbContext();
         SeedCompanies(context);
-        var handler = new SearchCompaniesQueryHandler(context);
+        var handler = new SearchCompaniesQueryHandler(context, CreateCache());
 
         var result = await handler.Handle(new SearchCompaniesQuery("a"), CancellationToken.None);
 
@@ -116,7 +119,7 @@ public class SearchCompaniesQueryHandlerTests
     {
         using var context = CreateDbContext();
         SeedCompanies(context);
-        var handler = new SearchCompaniesQueryHandler(context);
+        var handler = new SearchCompaniesQueryHandler(context, CreateCache());
 
         var resultNull = await handler.Handle(new SearchCompaniesQuery(""), CancellationToken.None);
         var resultWhitespace = await handler.Handle(new SearchCompaniesQuery("   "), CancellationToken.None);
@@ -130,7 +133,7 @@ public class SearchCompaniesQueryHandlerTests
     {
         using var context = CreateDbContext();
         SeedCompanies(context);
-        var handler = new SearchCompaniesQueryHandler(context);
+        var handler = new SearchCompaniesQueryHandler(context, CreateCache());
 
         var result = await handler.Handle(new SearchCompaniesQuery("Alpha Corp"), CancellationToken.None);
 
@@ -146,7 +149,7 @@ public class SearchCompaniesQueryHandlerTests
     {
         using var context = CreateDbContext();
         SeedCompanies(context);
-        var handler = new SearchCompaniesQueryHandler(context);
+        var handler = new SearchCompaniesQueryHandler(context, CreateCache());
 
         var result = await handler.Handle(new SearchCompaniesQuery("alpha"), CancellationToken.None);
 
@@ -175,7 +178,7 @@ public class SearchCompaniesQueryHandlerTests
         }
         await context.SaveChangesAsync();
 
-        var handler = new SearchCompaniesQueryHandler(context);
+        var handler = new SearchCompaniesQueryHandler(context, CreateCache());
         var result = await handler.Handle(new SearchCompaniesQuery("Test"), CancellationToken.None);
 
         result.Should().HaveCount(10);
@@ -186,10 +189,28 @@ public class SearchCompaniesQueryHandlerTests
     {
         using var context = CreateDbContext();
         SeedCompanies(context);
-        var handler = new SearchCompaniesQueryHandler(context);
+        var handler = new SearchCompaniesQueryHandler(context, CreateCache());
 
         var result = await handler.Handle(new SearchCompaniesQuery("NonExistent"), CancellationToken.None);
 
         result.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Search_CachesResults_OnSecondCall()
+    {
+        using var context = CreateDbContext();
+        SeedCompanies(context);
+        var cache = CreateCache();
+        var handler = new SearchCompaniesQueryHandler(context, cache);
+
+        var first = await handler.Handle(new SearchCompaniesQuery("alpha"), CancellationToken.None);
+        // Remove companies from DB to prove second call uses cache
+        context.Companies.RemoveRange(context.Companies);
+        await context.SaveChangesAsync();
+        var second = await handler.Handle(new SearchCompaniesQuery("alpha"), CancellationToken.None);
+
+        first.Should().HaveCount(2);
+        second.Should().HaveCount(2); // served from cache
     }
 }

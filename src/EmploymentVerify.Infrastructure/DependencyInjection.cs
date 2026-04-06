@@ -4,6 +4,7 @@ using EmploymentVerify.Infrastructure.Authentication;
 using EmploymentVerify.Infrastructure.Email;
 using EmploymentVerify.Infrastructure.Persistence;
 using EmploymentVerify.Infrastructure.Security;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -34,9 +35,10 @@ public static class DependencyInjection
             return settings;
         });
 
-        // Email
+        // Email — outbox pattern: writes to DB; OutboxDispatcherService delivers via SMTP
         services.Configure<SmtpSettings>(configuration.GetSection(SmtpSettings.SectionName));
-        services.AddTransient<IEmailSender, SmtpEmailSender>();
+        services.AddTransient<SmtpEmailSender>(); // concrete type for OutboxDispatcherService
+        services.AddScoped<IEmailSender, OutboxEmailSender>();
 
         // Pricing
         services.Configure<PricingSettings>(configuration.GetSection(PricingSettings.SectionName));
@@ -44,6 +46,8 @@ public static class DependencyInjection
         // Background services
         services.AddHostedService<BackgroundServices.EmailRetryService>();
         services.AddHostedService<BackgroundServices.TokenExpiryService>();
+        services.AddHostedService<BackgroundServices.ExpiredTokenCleanupService>();
+        services.AddHostedService<BackgroundServices.OutboxDispatcherService>();
 
         return services;
     }

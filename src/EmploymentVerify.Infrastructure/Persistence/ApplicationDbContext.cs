@@ -24,6 +24,7 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<OperatorNote> OperatorNotes => Set<OperatorNote>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<CreditTransaction> CreditTransactions => Set<CreditTransaction>();
+    public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -300,6 +301,13 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
             entity.Property(e => e.CreatedAt)
                 .HasColumnName("created_at")
                 .HasDefaultValueSql("NOW()");
+
+            entity.Property(e => e.FailedLoginAttempts)
+                .HasColumnName("failed_login_attempts")
+                .HasDefaultValue(0);
+
+            entity.Property(e => e.LockedUntil)
+                .HasColumnName("locked_until");
         });
 
         modelBuilder.Entity<RefreshToken>(entity =>
@@ -315,6 +323,23 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
             entity.HasIndex(e => e.Token).IsUnique();
             entity.HasIndex(e => e.UserId);
             entity.HasOne(e => e.User).WithMany().HasForeignKey(e => e.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<OutboxMessage>(entity =>
+        {
+            entity.ToTable("outbox_messages");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.To).HasColumnName("to_address").HasMaxLength(256).IsRequired();
+            entity.Property(e => e.Subject).HasColumnName("subject").HasMaxLength(500).IsRequired();
+            entity.Property(e => e.HtmlBody).HasColumnName("html_body").IsRequired();
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.SentAt).HasColumnName("sent_at");
+            entity.Property(e => e.AttemptCount).HasColumnName("attempt_count").HasDefaultValue(0);
+            entity.Property(e => e.LastError).HasColumnName("last_error").HasMaxLength(2000);
+            entity.Ignore(e => e.IsSent); // computed property
+            entity.HasIndex(e => e.SentAt);
+            entity.HasIndex(e => e.CreatedAt);
         });
 
         modelBuilder.Entity<CreditTransaction>(entity =>

@@ -13,5 +13,6 @@ public interface IApplicationDbContext
     DbSet<OperatorNote> OperatorNotes { get; }
     DbSet<RefreshToken> RefreshTokens { get; }
     DbSet<CreditTransaction> CreditTransactions { get; }
+    DbSet<OutboxMessage> OutboxMessages { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

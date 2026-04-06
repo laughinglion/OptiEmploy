@@ -52,17 +52,35 @@ public class SendVerificationEmailCommandHandler : IRequestHandler<SendVerificat
 
         var confirmationLink = $"{request.BaseUrl}/verify/confirm?token={token}";
         var subject = "Employment Verification Request";
-        var body = $@"<p>Dear {verification.HrContactName ?? "HR Representative"},</p>
-<p>We have received an employment verification request for <strong>{verification.EmployeeFullName}</strong>
-who claims to have worked at <strong>{verification.CompanyName}</strong> as <strong>{verification.JobTitle}</strong>.</p>
-<p>Please click the link below to confirm or deny this information:</p>
-<p><a href=""{confirmationLink}"">Respond to Verification Request</a></p>
-<p>This link will expire in 48 hours.</p>
-<p>If you did not expect this request or have concerns, please contact us.</p>
-<p>Thank you,<br/>Employment Verify</p>";
+        var body = BuildHrEmailBody(verification.HrContactName, verification.EmployeeFullName, verification.CompanyName, verification.JobTitle, confirmationLink);
 
         await _emailSender.SendEmailAsync(verification.HrEmail, subject, body, cancellationToken);
 
         return true;
+    }
+
+    private static string BuildHrEmailBody(string? hrContactName, string employeeFullName, string companyName, string jobTitle, string confirmationLink)
+    {
+        var greeting = string.IsNullOrWhiteSpace(hrContactName) ? "Dear HR Representative" : $"Dear {hrContactName}";
+        return $@"
+<div style=""font-family:Arial,sans-serif;font-size:15px;color:#222;line-height:1.6;max-width:600px;margin:0 auto;padding:24px;border:1px solid #ddd;border-radius:6px;"">
+  <h2 style=""color:#1a56db;"">Employment Verification Request</h2>
+  <p>{greeting},</p>
+  <p>We have received an employment verification request for:</p>
+  <table style=""border-collapse:collapse;margin:16px 0;"">
+    <tr><td style=""padding:4px 16px 4px 0;font-weight:bold;"">Employee:</td><td>{System.Net.WebUtility.HtmlEncode(employeeFullName)}</td></tr>
+    <tr><td style=""padding:4px 16px 4px 0;font-weight:bold;"">Company:</td><td>{System.Net.WebUtility.HtmlEncode(companyName)}</td></tr>
+    <tr><td style=""padding:4px 16px 4px 0;font-weight:bold;"">Job Title:</td><td>{System.Net.WebUtility.HtmlEncode(jobTitle)}</td></tr>
+  </table>
+  <p>Please click the button below to confirm or dispute this information:</p>
+  <p style=""margin:24px 0;"">
+    <a href=""{confirmationLink}"" style=""display:inline-block;padding:12px 24px;background-color:#1a56db;color:#fff;text-decoration:none;border-radius:4px;font-weight:bold;"">Respond to Verification</a>
+  </p>
+  <p><strong>This link will expire in 48 hours.</strong></p>
+  <p>If you did not expect this request, please ignore this email or contact us immediately.</p>
+  <div style=""margin-top:32px;font-size:12px;color:#666;border-top:1px solid #eee;padding-top:16px;"">
+    <p>Employment Verify — POPIA-compliant employment verification platform.</p>
+  </div>
+</div>";
     }
 }

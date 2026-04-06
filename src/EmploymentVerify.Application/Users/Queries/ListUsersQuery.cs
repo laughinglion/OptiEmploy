@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EmploymentVerify.Application.Users.Queries;
 
-public record ListUsersQuery(string? Role = null) : IRequest<List<UserSummaryDto>>;
+public record ListUsersQuery(string? Role = null, int Page = 1, int PageSize = 20) : IRequest<PagedResult<UserSummaryDto>>;
 
 public record UserSummaryDto(
     Guid Id,
@@ -16,7 +16,7 @@ public record UserSummaryDto(
     bool IsActive,
     DateTime CreatedAt);
 
-public class ListUsersQueryHandler : IRequestHandler<ListUsersQuery, List<UserSummaryDto>>
+public class ListUsersQueryHandler : IRequestHandler<ListUsersQuery, PagedResult<UserSummaryDto>>
 {
     private readonly IApplicationDbContext _context;
 
@@ -25,9 +25,9 @@ public class ListUsersQueryHandler : IRequestHandler<ListUsersQuery, List<UserSu
         _context = context;
     }
 
-    public async Task<List<UserSummaryDto>> Handle(ListUsersQuery request, CancellationToken cancellationToken)
+    public async Task<PagedResult<UserSummaryDto>> Handle(ListUsersQuery request, CancellationToken cancellationToken)
     {
-        var query = _context.Users.AsQueryable();
+        var query = _context.Users.AsNoTracking().AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(request.Role) &&
             Enum.TryParse<Domain.Enums.UserRole>(request.Role, ignoreCase: true, out var role))
@@ -35,8 +35,14 @@ public class ListUsersQueryHandler : IRequestHandler<ListUsersQuery, List<UserSu
             query = query.Where(u => u.Role == role);
         }
 
-        return await query
+        var totalCount = await query.CountAsync(cancellationToken);
+        var page = Math.Max(1, request.Page);
+        var pageSize = Math.Clamp(request.PageSize, 1, 100);
+
+        var items = await query
             .OrderBy(u => u.FullName)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .Select(u => new UserSummaryDto(
                 u.Id,
                 u.Email,
@@ -47,5 +53,7 @@ public class ListUsersQueryHandler : IRequestHandler<ListUsersQuery, List<UserSu
                 u.IsActive,
                 u.CreatedAt))
             .ToListAsync(cancellationToken);
+
+        return new PagedResult<UserSummaryDto>(items, totalCount, page, pageSize);
     }
 }
